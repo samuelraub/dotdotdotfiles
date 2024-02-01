@@ -9,4 +9,10 @@ require "rubocop/rake_task"
 
 RuboCop::RakeTask.new
 
+namespace :dev do
+  task :setup do
+    ruby "-I lib exe/dotfiles setup"
+  end
+end
+
 task default: %i[spec rubocop]
