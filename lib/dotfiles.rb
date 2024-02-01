@@ -35,7 +35,7 @@ module Dotfiles
       true
     end
 
-    def render
+    def compile
       files = @config["files"]
       files.each do |file|
         file["variants"].each do |variant|

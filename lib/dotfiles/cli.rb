@@ -16,5 +16,13 @@ module Dotfiles
     def setup
       Dotfiles.setup(input: options[:input], output: options[:output])
     end
+
+    desc "compile", "Compiles your ERB templates to the respective out directories."
+
+    def compile
+      return unless File.exist? "#{Dir.home}/.dotfiles.yaml"
+      df = Dotfiles.new
+      df.compile
+    end
   end
 end
