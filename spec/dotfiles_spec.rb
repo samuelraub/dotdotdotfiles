@@ -5,7 +5,19 @@ RSpec.describe Dotfiles do
     expect(Dotfiles::VERSION).not_to be nil
   end
 
-  it "does something useful" do
-    expect(false).to eq(true)
+  it "loads the default config" do
+    df = Dotfiles::Dotfiles.new
+    expect(df.config).not_to be_empty
   end
+
+  it "creates tempate and output directories" do
+    df = Dotfiles::Dotfiles.new
+    expect(df.setup).to be true
+  end
+
+  it "renders templates" do
+    df = Dotfiles::Dotfiles.new
+    expect(df.render).not_to be 0
+  end
+
 end
