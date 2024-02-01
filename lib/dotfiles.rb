@@ -1,4 +1,5 @@
 # frozen_string_literal: true
+
 require "yaml"
 require "fileutils"
 require "erb"
@@ -15,9 +16,22 @@ module Dotfiles
       @config = YAML.safe_load(File.read("#{Dir.home}/.dotfiles.yaml"))
     end
 
-    def setup
-      FileUtils.mkdir_p(@config["templates_path"])
-      FileUtils.mkdir_p(@config["output_path"])
+    def self.setup(input:, output:)
+      if File.exist?("#{Dir.home}/.dotfiles.yaml")
+        puts "-- You already have a .dotfiles.yaml --"
+        return
+      end
+
+      defaults = YAML.safe_load(File.read("#{__dir__}/data/default_config.yaml"))
+      defaults["templates_path"] = input
+      defaults["output_path"] = output
+      custom_config = YAML.dump(defaults)
+      File.write("#{Dir.home}/.dotfiles.yaml", custom_config)
+      puts "-- Config created --"
+
+      FileUtils.mkdir_p(input)
+      FileUtils.mkdir_p(output)
+      puts "-- Directories created --"
       true
     end
 

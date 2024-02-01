@@ -19,5 +19,4 @@ RSpec.describe Dotfiles do
     df = Dotfiles::Dotfiles.new
     expect(df.render).not_to be 0
   end
-
 end
