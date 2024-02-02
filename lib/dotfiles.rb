@@ -35,14 +35,35 @@ module Dotfiles
       true
     end
 
+    def link
+      files = @config["files"]
+      files.each do |file|
+        file["variants"].each do |variant|
+          next unless variant["links"].is_a? Array
+          variant["links"].each do |link|
+            FileUtils.rm_rf("#{Dir.home}/#{link}")
+            FileUtils.ln_s("#{config["output_path"]}/#{file["name"]}/#{variant["name"]}/#{link}",
+                           "#{Dir.home}/#{link}")
+          end
+        end
+      end
+    end
+
     def compile
       files = @config["files"]
       files.each do |file|
         file["variants"].each do |variant|
-          v = { variant.to_sym => true }
+          variant_name = variant["name"]
+          copy_files = variant["copy_files"]
           filename = file["name"]
-          path = "#{@config["output_path"]}/#{filename}/#{variant}"
+          path = "#{@config["output_path"]}/#{filename}/#{variant_name}"
+          if copy_files.is_a? Array
+            copy_files.each do |cpf|
+              FileUtils.cp_r(cpf, path)
+            end
+          end
           FileUtils.mkdir_p(path)
+          v = { variant_name.to_sym => true }
           template = ERB.new(File.read("#{@config["templates_path"]}/#{filename}.erb"))
           File.write("#{path}/#{filename}",
                      template.result(binding))

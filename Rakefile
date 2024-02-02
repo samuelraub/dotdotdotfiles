@@ -13,6 +13,12 @@ namespace :dev do
   task :setup do
     ruby "-I lib exe/dotfiles setup"
   end
+  task :compile do
+    ruby "-I lib exe/dotfiles compile"
+  end
+  task :link do
+    ruby "-I lib exe/dotfiles link"
+  end
 end
 
 task default: %i[spec rubocop]

@@ -24,5 +24,13 @@ module Dotfiles
       df = Dotfiles.new
       df.compile
     end
+
+    desc "link", "Links the compiled files into the home directory."
+
+    def link
+      return unless File.exist? "#{Dir.home}/.dotfiles.yaml"
+      df = Dotfiles.new
+      df.link
+    end
   end
 end
