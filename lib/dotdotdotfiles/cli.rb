@@ -1,16 +1,16 @@
 # frozen_string_literal: true
 
 require "thor"
-require "dotfiles"
+require "dotdotdotfiles"
 
-module Dotfiles
+module Dotdotdotfiles
   class CLI < Thor
     def initialize(*args)
       super
       begin
         @df = Dotfiles.new
       rescue Errno::ENOENT
-        puts "-- No config file found. Please run `dotfiles setup` first."
+        puts "-- No config file found. Please run `dotdotdotfiles setup` first."
       end
     end
 

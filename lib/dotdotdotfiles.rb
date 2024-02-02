@@ -4,9 +4,9 @@ require "yaml"
 require "fileutils"
 require "erb"
 
-require_relative "dotfiles/version"
+require_relative "dotdotdotfiles/version"
 
-module Dotfiles
+module Dotdotdotfiles
   class Error < StandardError; end
 
   class Dotfiles

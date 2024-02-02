@@ -11,13 +11,13 @@ RuboCop::RakeTask.new
 
 namespace :dev do
   task :setup do
-    ruby "-I lib exe/dotfiles setup"
+    ruby "-I lib exe/dotdotdotfiles setup"
   end
   task :compile do
-    ruby "-I lib exe/dotfiles compile"
+    ruby "-I lib exe/dotdotdotfiles compile"
   end
   task :link do
-    ruby "-I lib exe/dotfiles link"
+    ruby "-I lib exe/dotdotdotfiles link"
   end
 end
 

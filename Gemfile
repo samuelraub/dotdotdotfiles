@@ -2,5 +2,5 @@
 
 source "https://rubygems.org"
 
-# Specify your gem's dependencies in dotfiles.gemspec
+# Specify your gem's dependencies in dotdotdotfiles.gemspec
 gemspec
