@@ -40,6 +40,7 @@ module Dotfiles
       files.each do |file|
         file["variants"].each do |variant|
           next unless variant["links"].is_a? Array
+
           variant["links"].each do |link|
             FileUtils.rm_rf("#{Dir.home}/#{link}")
             FileUtils.ln_s("#{config["output_path"]}/#{file["name"]}/#{variant["name"]}/#{link}",
@@ -57,12 +58,13 @@ module Dotfiles
           copy_files = variant["copy_files"]
           filename = file["name"]
           path = "#{@config["output_path"]}/#{filename}/#{variant_name}"
+          FileUtils.mkdir_p(path)
+
           if copy_files.is_a? Array
             copy_files.each do |cpf|
-              FileUtils.cp_r(cpf, path)
+              FileUtils.cp_r(cpf, path) unless File.lstat(cpf).symlink?
             end
           end
-          FileUtils.mkdir_p(path)
           v = { variant_name.to_sym => true }
           template = ERB.new(File.read("#{@config["templates_path"]}/#{filename}.erb"))
           File.write("#{path}/#{filename}",

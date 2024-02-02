@@ -5,6 +5,15 @@ require "dotfiles"
 
 module Dotfiles
   class CLI < Thor
+    def initialize(*args)
+      super
+      begin
+        @df = Dotfiles.new
+      rescue Errno::ENOENT
+        puts "-- No config file found. Please run `dotfiles setup` first."
+      end
+    end
+
     def self.exit_on_failure?
       true
     end
@@ -21,16 +30,16 @@ module Dotfiles
 
     def compile
       return unless File.exist? "#{Dir.home}/.dotfiles.yaml"
-      df = Dotfiles.new
-      df.compile
+
+      @df.compile
     end
 
     desc "link", "Links the compiled files into the home directory."
 
     def link
       return unless File.exist? "#{Dir.home}/.dotfiles.yaml"
-      df = Dotfiles.new
-      df.link
+
+      @df.link
     end
   end
 end
