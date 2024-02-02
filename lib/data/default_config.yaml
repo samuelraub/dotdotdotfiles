@@ -3,5 +3,8 @@ templates_path: ""
 files:
   - name: ""
     variants:
-      - ""
-      - ""
+      - name: ""
+        copy_files:
+          - ""
+        links:
+          - ""
