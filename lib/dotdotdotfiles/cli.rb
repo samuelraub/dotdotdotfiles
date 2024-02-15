@@ -27,9 +27,11 @@ module Dotdotdotfiles
     end
 
     desc "compile", "Compiles your ERB templates to the respective out directories."
+    method_option :prune, aliases: "-p", type: :boolean, required: false
 
     def compile
       return unless File.exist? "#{Dir.home}/.dotfiles.yaml"
+      @df.prune if options[:prune]
 
       @df.compile
     end

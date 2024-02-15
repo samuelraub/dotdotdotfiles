@@ -51,6 +51,7 @@ module Dotdotdotfiles
     end
 
     def compile
+      puts @config["output_path"]
       files = @config["files"]
       files.each do |file|
         file["variants"].each do |variant|
@@ -72,5 +73,10 @@ module Dotdotdotfiles
         end
       end
     end
+
+    def prune
+      FileUtils.rm_rf("#{@config["output_path"]}/.")
+    end
+
   end
 end
