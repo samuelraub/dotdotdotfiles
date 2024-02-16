@@ -40,8 +40,16 @@ module Dotdotdotfiles
 
     def link
       return unless File.exist? "#{Dir.home}/.dotfiles.yaml"
-
       @df.link
     end
+
+    desc "script", "Generates a script that creates symlinks for the desired variants."
+    method_option :variants, aliases: "-v", type: :array, required: true
+
+    def script
+      return unless File.exist? "#{Dir.home}/.dotfiles.yaml"
+      @df.generate_link_script(variant_names: options[:variants])
+    end
+
   end
 end
