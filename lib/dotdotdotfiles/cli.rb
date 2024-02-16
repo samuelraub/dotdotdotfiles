@@ -10,7 +10,7 @@ module Dotdotdotfiles
       begin
         @df = Dotfiles.new
       rescue Errno::ENOENT
-        puts "-- No config file found. Please run `dotdotdotfiles setup` first."
+        puts "-- No config file found. Please run `dotdotdotfiles setup` first. --"
       end
     end
 
