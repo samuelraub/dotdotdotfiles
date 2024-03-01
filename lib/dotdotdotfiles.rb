@@ -69,6 +69,7 @@ module Dotdotdotfiles
             end
           end
           v = { variant_name.to_sym => true }
+          d = self
           template = ERB.new(File.read("#{@config["abs_templates_path"]}/#{filename}.erb"))
           File.write("#{path}/#{filename}",
                      template.result(binding))
@@ -92,5 +93,20 @@ module Dotdotdotfiles
       end
       File.write("#{@config["abs_templates_path"]}/link_#{variant_names.join("_")}.sh", script)
     end
+
+    def encrypt
+      files = @config["secrets"]
+      return if files.to_a.empty?
+      atp = @config["abs_templates_path"]
+      files.each do |secret|
+        `age -e -i #{atp}/.key.txt -o #{atp}/#{secret}.enc #{atp}/#{secret}`
+      end
+    end
+
+    def decrypt(file_name)
+      atp = @config["abs_templates_path"]
+      `age -d -i #{atp}/.key.txt #{atp}/#{file_name}.enc`
+    end
+
   end
 end

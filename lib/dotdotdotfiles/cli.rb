@@ -28,10 +28,12 @@ module Dotdotdotfiles
 
     desc "compile", "Compiles your ERB templates to the respective out directories."
     method_option :prune, aliases: "-p", type: :boolean, required: false
+    method_option :encrypt, aliases: "-e", type: :boolean, required: false
 
     def compile
       return unless File.exist? "#{Dir.home}/.dotfiles.yaml"
       @df.prune if options[:prune]
+      @df.encrypt if options[:encrypt]
 
       @df.compile
     end
@@ -49,6 +51,13 @@ module Dotdotdotfiles
     def script
       return unless File.exist? "#{Dir.home}/.dotfiles.yaml"
       @df.generate_link_script(variant_names: options[:variants])
+    end
+
+    desc "encrypt", "Encrypts the secrets defined in the .dotfiles.yaml"
+
+    def encrypt
+      return unless File.exist? "#{Dir.home}/.dotfiles.yaml"
+      @df.encrypt
     end
 
   end

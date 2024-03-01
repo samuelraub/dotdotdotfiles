@@ -1,5 +1,6 @@
 output_path: ""
 templates_path: ""
+repository: ""
 files:
   - name: ""
     variants:
@@ -8,3 +9,5 @@ files:
           - ""
         links:
           - ""
+secrets:
+  - ""
