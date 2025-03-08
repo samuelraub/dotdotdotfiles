@@ -10,7 +10,7 @@ module Dotdotdotfiles
   class Error < StandardError; end
 
   class Dotfiles
-    attr_reader :config
+    attr_accessor :config
 
     def initialize
       @config = YAML.safe_load(File.read("#{Dir.home}/.dotfiles.yaml"))
@@ -44,8 +44,9 @@ module Dotdotdotfiles
           next unless variant["links"].is_a? Array
 
           variant["links"].each do |link|
+            puts "#{config["abs_output_path"]}/#{file["name"]}/#{variant["name"]}/#{file["name"]} -> #{Dir.home}/#{link}"
             FileUtils.rm_rf("#{Dir.home}/#{link}")
-            FileUtils.ln_s("#{config["abs_output_path"]}/#{file["name"]}/#{variant["name"]}/#{link}",
+            FileUtils.ln_s("#{config["abs_output_path"]}/#{file["name"]}/#{variant["name"]}/#{file["name"]}",
                            "#{Dir.home}/#{link}")
           end
         end
@@ -53,21 +54,21 @@ module Dotdotdotfiles
     end
 
     def compile
-      puts @config["output_path"]
+      puts "Compiled to: #{@config["output_path"]}"
       files = @config["files"]
       files.each do |file|
         file["variants"].each do |variant|
           variant_name = variant["name"]
-          copy_files = variant["copy_files"]
           filename = file["name"]
           path = "#{@config["abs_output_path"]}/#{filename}/#{variant_name}"
           FileUtils.mkdir_p(path)
 
-          if copy_files.is_a? Array
-            copy_files.each do |cpf|
-              FileUtils.cp_r(cpf, path) unless File.lstat(cpf).symlink?
-            end
+          if variant["compile"] == false
+            # TODO: Check if file is has .erb suffix or is a directory
+            FileUtils.cp_r("#{@config["abs_templates_path"]}/#{filename}", path)
+            next
           end
+
           v = { variant_name.to_sym => true }
           d = self
           template = ERB.new(File.read("#{@config["abs_templates_path"]}/#{filename}.erb"))
@@ -87,6 +88,7 @@ module Dotdotdotfiles
       files.each do |file|
         file["variants"].each do |variant|
           next unless variant_names.include? variant["name"]
+
           script += "rm -rf ~/#{file["name"]}\n"
           script += "ln -s #{@config["output_path"]}/#{file["name"]}/#{variant["name"]}/#{file["name"]} ~/#{file["name"]}\n"
         end
@@ -97,6 +99,7 @@ module Dotdotdotfiles
     def encrypt
       files = @config["secrets"]
       return if files.to_a.empty?
+
       atp = @config["abs_templates_path"]
       files.each do |secret|
         `age -e -i #{atp}/.key.txt -o #{atp}/#{secret}.enc #{atp}/#{secret}`
@@ -107,6 +110,5 @@ module Dotdotdotfiles
       atp = @config["abs_templates_path"]
       `age -d -i #{atp}/.key.txt #{atp}/#{file_name}.enc`
     end
-
   end
 end

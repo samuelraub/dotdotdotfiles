@@ -5,8 +5,6 @@ files:
   - name: ""
     variants:
       - name: ""
-        copy_files:
-          - ""
         links:
           - ""
 secrets:
