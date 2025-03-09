@@ -13,14 +13,14 @@ module Dotdotdotfiles
     attr_accessor :config
 
     def initialize
-      @config = YAML.safe_load(File.read("#{Dir.home}/.dotfiles.yaml"))
+      @config = YAML.safe_load(File.read("#{Dir.home}/.dotfiles.yml"))
       @config["abs_output_path"] = File.expand_path(@config["output_path"])
       @config["abs_templates_path"] = File.expand_path(@config["templates_path"])
     end
 
     def self.setup(input:, output:)
-      if File.exist?("#{Dir.home}/.dotfiles.yaml")
-        puts "-- You already have a .dotfiles.yaml --"
+      if File.exist?("#{Dir.home}/.dotfiles.yml")
+        puts "-- You already have a .dotfiles.yml --"
         return
       end
 
@@ -28,7 +28,7 @@ module Dotdotdotfiles
       defaults["templates_path"] = input
       defaults["output_path"] = output
       custom_config = YAML.dump(defaults)
-      File.write("#{Dir.home}/.dotfiles.yaml", custom_config)
+      File.write("#{Dir.home}/.dotfiles.yml", custom_config)
       puts "-- Config created --"
 
       FileUtils.mkdir_p(File.expand_path(input))
@@ -54,20 +54,15 @@ module Dotdotdotfiles
     end
 
     def compile
-      puts "Compiled to: #{@config["output_path"]}"
       files = @config["files"]
       files.each do |file|
+        next if file["compile"] == false
+
         file["variants"].each do |variant|
           variant_name = variant["name"]
           filename = file["name"]
           path = "#{@config["abs_output_path"]}/#{filename}/#{variant_name}"
           FileUtils.mkdir_p(path)
-
-          if variant["compile"] == false
-            # TODO: Check if file is has .erb suffix or is a directory
-            FileUtils.cp_r("#{@config["abs_templates_path"]}/#{filename}", path)
-            next
-          end
 
           v = { variant_name.to_sym => true }
           d = self
@@ -76,10 +71,19 @@ module Dotdotdotfiles
                      template.result(binding))
         end
       end
+      puts "-- Compiled to: #{@config["output_path"]} --"
     end
 
     def prune
-      FileUtils.rm_rf("#{@config["abs_output_path"]}/.")
+      puts "-- Pruning compiled files from #{@config["abs_output_path"]}/ --"
+      dont_compile = @config["files"].filter { |e| e["compile"] == false }
+                                     .map { |e| e["name"] }
+
+      Dir.children(@config["abs_output_path"]).each do |entry|
+        next if dont_compile.include?(entry)
+
+        FileUtils.rm_rf("#{@config["abs_output_path"]}/#{entry}")
+      end
     end
 
     def generate_link_script(variant_names: [])

@@ -31,7 +31,8 @@ module Dotdotdotfiles
     method_option :encrypt, aliases: "-e", type: :boolean, required: false
 
     def compile
-      return unless File.exist? "#{Dir.home}/.dotfiles.yaml"
+      return unless File.exist? "#{Dir.home}/.dotfiles.yml"
+
       @df.prune if options[:prune]
       @df.encrypt if options[:encrypt]
 
@@ -41,7 +42,8 @@ module Dotdotdotfiles
     desc "link", "Links the compiled files into the home directory."
 
     def link
-      return unless File.exist? "#{Dir.home}/.dotfiles.yaml"
+      return unless File.exist? "#{Dir.home}/.dotfiles.yml"
+
       @df.link
     end
 
@@ -49,16 +51,17 @@ module Dotdotdotfiles
     method_option :variants, aliases: "-v", type: :array, required: true
 
     def script
-      return unless File.exist? "#{Dir.home}/.dotfiles.yaml"
+      return unless File.exist? "#{Dir.home}/.dotfiles.yml"
+
       @df.generate_link_script(variant_names: options[:variants])
     end
 
-    desc "encrypt", "Encrypts the secrets defined in the .dotfiles.yaml"
+    desc "encrypt", "Encrypts the secrets defined in the .dotfiles.yml"
 
     def encrypt
-      return unless File.exist? "#{Dir.home}/.dotfiles.yaml"
+      return unless File.exist? "#{Dir.home}/.dotfiles.yml"
+
       @df.encrypt
     end
-
   end
 end

@@ -14,7 +14,7 @@ namespace :dev do
     ruby "-I lib exe/dotdotdotfiles setup"
   end
   task :compile do
-    ruby "-I lib exe/dotdotdotfiles compile"
+    ruby "-I lib exe/dotdotdotfiles compile -p"
   end
   task :link do
     ruby "-I lib exe/dotdotdotfiles link"
