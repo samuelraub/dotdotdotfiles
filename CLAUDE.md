@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## What this is
 
-A Ruby gem (Thor CLI) that renders dotfiles from ERB templates into per-variant output directories and symlinks them into `$HOME`. Apart from the manifest-location section, `README.md` is still `bundle gem` boilerplate — the code is the documentation.
+A Ruby gem (Thor CLI) that renders dotfiles from ERB templates into per-variant output directories and symlinks them into `$HOME`. `README.md` has the overview, installation and the manifest lookup; beyond that the code is the documentation.
 
 ## Commands
 
@@ -95,4 +95,3 @@ Renaming locals inside `render` is therefore a breaking change for users' templa
 - RuboCop: double-quoted strings, 120-column lines, `TargetRubyVersion: 2.6`.
 - `.ruby-version` and CI both use 3.3.4; the gemspec allows `>= 2.6.0`, which is also rubocop's target.
 - Commit messages follow `type(scope): subject`, e.g. `fix(CLI): don't prune non-compiled files`.
-- `sig/dotfiles.rbs` is a stale stub from the gem's former name (`dotfiles`).
