@@ -24,6 +24,6 @@ jobs:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
       - name: Install age
-      run: sudo apt-get update && sudo apt-get install -y age
-    - name: Run the default task
+        run: sudo apt-get update && sudo apt-get install -y age
+      - name: Run the default task
         run: bundle exec rake
