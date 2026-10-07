@@ -4,6 +4,7 @@ require "thor"
 require "dotdotdotfiles"
 
 module Dotdotdotfiles
+  # Maps the subcommands onto Dotfiles.
   class CLI < Thor
     class_option :config, aliases: "-c", type: :string,
                           desc: "Manifest path (default: $DOTDOTDOTFILES_CONFIG, ./.dotfiles.yml, ~/.dotfiles.yml)"

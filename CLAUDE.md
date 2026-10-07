@@ -63,17 +63,17 @@ The rendered artefact for a file/variant pair is always:
 <output_path>/<file name>/<variant name>/<file name>
 ```
 
-`compile`, `link` and `generate_link_script` each rebuild this path by string interpolation — change the layout in all three.
+`link` and `generate_link_script` get it from `output_file`; `render` builds the same directory itself because `path` is a template local — change the layout in both.
 
 ### Template rendering
 
-`compile` reads `<templates_path>/<name>.erb` once per variant and evaluates it with the method's own `binding`, so templates see these locals:
+`compile` calls `render` once per variant, which reads `<templates_path>/<name>.erb` and evaluates it with its own `binding`, so templates see these locals:
 
 - `v` — `{ <variant_name>: true }`, for branching: `<% if v[:server] %>`
 - `d` — the `Dotfiles` instance, mainly for `<%= d.decrypt("some_secret_file") %>`
 - also `file`, `variant`, `filename`, `variant_name`, `path`
 
-Renaming locals inside `compile` is therefore a breaking change for users' templates.
+Renaming locals inside `render` is therefore a breaking change for users' templates.
 
 ### Secrets
 

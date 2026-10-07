@@ -38,6 +38,7 @@ module Dotdotdotfiles
     end
   end
 
+  # Renders, links and encrypts the files listed in the manifest.
   class Dotfiles
     attr_accessor :config
     attr_reader :config_path
@@ -51,39 +52,31 @@ module Dotdotdotfiles
 
     def self.setup(input:, output:, config: nil)
       path = Manifest.explicit(config) || Manifest.home
-      if File.exist?(path)
-        puts "-- You already have a manifest at #{path} --"
-        return
-      end
+      return puts("-- You already have a manifest at #{path} --") if File.exist?(path)
 
       defaults = YAML.safe_load(File.read("#{__dir__}/data/default_config.yaml"))
-      defaults["templates_path"] = input
-      defaults["output_path"] = output
-      custom_config = YAML.dump(defaults)
-      File.write(path, custom_config)
+      File.write(path, YAML.dump(defaults.merge("templates_path" => input, "output_path" => output)))
       puts "-- Config created at #{path} --"
 
-      FileUtils.mkdir_p(File.expand_path(input))
-      FileUtils.mkdir_p(File.expand_path(output))
+      [input, output].each { |dir| FileUtils.mkdir_p(File.expand_path(dir)) }
       puts "-- Directories created --"
       true
     end
 
     def link
-      @config["files"].each do |file|
-        file["variants"].each do |variant|
-          next unless variant["links"].is_a? Array
+      each_variant do |file, variant|
+        next unless variant["links"].is_a? Array
 
-          variant["links"].each do |link|
-            puts "#{config["abs_output_path"]}/#{file["name"]}/#{variant["name"]}/#{file["name"]} -> #{Dir.home}/#{link}"
-            FileUtils.rm_rf("#{Dir.home}/#{link}")
-            FileUtils.mkdir_p(File.dirname("#{Dir.home}/#{link}"))
-            FileUtils.ln_s("#{config["abs_output_path"]}/#{file["name"]}/#{variant["name"]}/#{file["name"]}",
-                           "#{Dir.home}/#{link}")
-          end
-        end
+        variant["links"].each { |link| link_file(output_file(file, variant), "#{Dir.home}/#{link}") }
       end
       link_config
+    end
+
+    def link_file(source, target)
+      puts "#{source} -> #{target}"
+      FileUtils.rm_rf(target)
+      FileUtils.mkdir_p(File.dirname(target))
+      FileUtils.ln_s(source, target)
     end
 
     # Lets later runs find the manifest from any directory.
@@ -98,24 +91,21 @@ module Dotdotdotfiles
     end
 
     def compile
-      files = @config["files"]
-      files.each do |file|
-        next if file["compile"] == false
-
-        file["variants"].each do |variant|
-          variant_name = variant["name"]
-          filename = file["name"]
-          path = "#{@config["abs_output_path"]}/#{filename}/#{variant_name}"
-          FileUtils.mkdir_p(path)
-
-          v = { variant_name.to_sym => true }
-          d = self
-          template = ERB.new(File.read("#{@config["abs_templates_path"]}/#{filename}.erb"))
-          File.write("#{path}/#{filename}",
-                     template.result(binding))
-        end
-      end
+      each_variant { |file, variant| render(file, variant) unless file["compile"] == false }
       puts "-- Compiled to: #{@config["output_path"]} --"
+    end
+
+    # Every local in here is visible to the templates.
+    def render(file, variant)
+      variant_name = variant["name"]
+      filename = file["name"]
+      path = "#{@config["abs_output_path"]}/#{filename}/#{variant_name}"
+      FileUtils.mkdir_p(path)
+
+      v = { variant_name.to_sym => true }
+      d = self
+      template = ERB.new(File.read("#{@config["abs_templates_path"]}/#{filename}.erb"))
+      File.write("#{path}/#{filename}", template.result(binding))
     end
 
     def prune
@@ -132,14 +122,11 @@ module Dotdotdotfiles
 
     def generate_link_script(variant_names: [])
       script = ""
-      files = @config["files"]
-      files.each do |file|
-        file["variants"].each do |variant|
-          next unless variant_names.include? variant["name"]
+      each_variant do |file, variant|
+        next unless variant_names.include? variant["name"]
 
-          script += "rm -rf ~/#{file["name"]}\n"
-          script += "ln -s #{@config["output_path"]}/#{file["name"]}/#{variant["name"]}/#{file["name"]} ~/#{file["name"]}\n"
-        end
+        script += "rm -rf ~/#{file["name"]}\n"
+        script += "ln -s #{output_file(file, variant, @config["output_path"])} ~/#{file["name"]}\n"
       end
       File.write("#{@config["abs_templates_path"]}/link_#{variant_names.join("_")}.sh", script)
     end
@@ -157,6 +144,16 @@ module Dotdotdotfiles
     def decrypt(file_name)
       atp = @config["abs_templates_path"]
       `age -d -i #{atp}/.key.txt #{atp}/#{file_name}.enc`
+    end
+
+    def each_variant
+      @config["files"].each do |file|
+        file["variants"].each { |variant| yield file, variant }
+      end
+    end
+
+    def output_file(file, variant, root = @config["abs_output_path"])
+      "#{root}/#{file["name"]}/#{variant["name"]}/#{file["name"]}"
     end
   end
 end
