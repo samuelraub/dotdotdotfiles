@@ -29,6 +29,9 @@ Every command reads its manifest from the first of these that applies:
 
 If none is found, the command lists the paths it checked and exits non-zero.
 
+Relative `templates_path` and `output_path` values are resolved against the directory the manifest lives in, so
+`templates_path: .` and `output_path: out` work wherever the repository is cloned.
+
 `dotdotdotfiles link` also symlinks `~/.dotfiles.yml` to the manifest it used, so later runs work from any directory.
 An existing `~/.dotfiles.yml` that is a different file is reported and left untouched.
 

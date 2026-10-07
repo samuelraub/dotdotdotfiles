@@ -17,7 +17,7 @@ bundle exec rake install                   # build into pkg/ and install the gem
 ruby -I lib exe/dotdotdotfiles <command>   # run the CLI from source without installing
 ```
 
-`rake dev:compile` and `rake dev:link` wrap the last form (`compile -p` and `link`). `rake dev:setup` is broken: it omits the required `-i`/`-o` options.
+`rake dev:compile` and `rake dev:link` wrap the last form (`compile -p` and `link`).
 
 `rake release` cannot work as-is; `allowed_push_host` and the URLs in the gemspec are still placeholders.
 
@@ -53,7 +53,7 @@ secrets:
   - some_secret_file
 ```
 
-`abs_templates_path` / `abs_output_path` are derived at load time via `File.expand_path`.
+`abs_templates_path` / `abs_output_path` are derived at load time by `Manifest.expand`: relative paths count from the real manifest's directory (through the `~/.dotfiles.yml` symlink), never from the working directory.
 
 ### Path convention
 
@@ -81,7 +81,7 @@ Renaming locals inside `render` is therefore a breaking change for users' templa
 
 ### `link` vs `script`
 
-`link` honours each variant's `links` array (and skips variants without one), then symlinks `~/.dotfiles.yml` to the manifest in use unless something else is already there. `Links.check` validates every link (inside home, no overlapping targets, clear of the output and templates directories, source exists) before any target is replaced. It and `prune` compare resolved paths via `Paths`, never the spelled ones. `script -v a b` writes `<templates_path>/link_a_b.sh` for use on another machine, but ignores `links` and always targets `~/<file name>`, using the unexpanded `output_path`.
+`link` honours each variant's `links` array (and skips variants without one), then symlinks `~/.dotfiles.yml` to the manifest in use unless something else is already there. `Links.check` validates every link (inside home, no overlapping targets, clear of the output and templates directories, source exists) before any target is replaced. It and `prune` compare resolved paths via `Paths`, never the spelled ones. `script -v a b` writes `<templates_path>/link_a_b.sh` for use on another machine, but ignores `links` and always targets `~/<file name>`, using `output_path` as written (a relative one is rewritten as seen from `~`).
 
 ## Conventions
 

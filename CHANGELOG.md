@@ -6,6 +6,9 @@
 - `setup` writes the manifest to the explicit path when one is given
 - `link` creates missing parent directories of a link target (e.g. `~/.config`) instead of failing
 - Allow thor 1.x from 1.3 on
+- Relative `output_path` and `templates_path` are resolved against the manifest's directory instead of the working
+  directory, and `setup` stores relative `-i`/`-o` arguments as absolute paths
+- Remove the `dev:setup` rake task, which could not pass the required options
 - `link` refuses a link that does not resolve to a path inside the home directory (an empty one used to delete it)
 - `link` checks every link and source first, and replaces nothing when one of them is invalid
 - `link` refuses links that overlap (the same target twice, or one inside another) and links that would replace

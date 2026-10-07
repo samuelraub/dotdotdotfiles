@@ -41,8 +41,15 @@ module Dotdotdotfiles
 
     def self.skeleton(input, output)
       defaults = YAML.safe_load(File.read("#{__dir__}/data/default_config.yaml"))
+      # The arguments are relative to the working directory, the manifest's paths to the manifest.
+      input, output = [input, output].map { |dir| dir.start_with?("~") ? dir : File.expand_path(dir) }
       YAML.dump(defaults.merge("templates_path" => input, "output_path" => output)) +
         File.read("#{__dir__}/data/example.yaml")
+    end
+
+    # Relative paths count from the manifest itself, not from a symlink to it or the working directory.
+    def self.expand(path, manifest)
+      File.expand_path(path, File.dirname(File.realpath(manifest)))
     end
 
     def self.load(path)
@@ -165,8 +172,8 @@ module Dotdotdotfiles
     def initialize(config: nil)
       @config_path = Manifest.resolve(config)
       @config = Manifest.load(@config_path)
-      @config["abs_output_path"] = File.expand_path(@config["output_path"])
-      @config["abs_templates_path"] = File.expand_path(@config["templates_path"])
+      @config["abs_output_path"] = Manifest.expand(@config["output_path"], @config_path)
+      @config["abs_templates_path"] = Manifest.expand(@config["templates_path"], @config_path)
     end
 
     def self.setup(input:, output:, config: nil)
@@ -240,7 +247,7 @@ module Dotdotdotfiles
 
         name, source = [file["name"], output_file(file, variant, "")].map { |part| Shellwords.escape(part) }
         script += "rm -rf ~/#{name}\n"
-        script += "ln -s #{@config["output_path"]}#{source} ~/#{name}\n"
+        script += "ln -s #{script_root}#{source} ~/#{name}\n"
       end
       File.write("#{@config["abs_templates_path"]}/link_#{variant_names.join("_")}.sh", script)
     end
@@ -255,6 +262,12 @@ module Dotdotdotfiles
     def decrypt(file_name)
       atp = @config["abs_templates_path"]
       Age.run("-d", "-i", "#{atp}/.key.txt", "#{atp}/#{file_name}.enc")
+    end
+
+    # A relative output path would mean something else from the home directory the script links into.
+    def script_root
+      root = @config["output_path"]
+      root.start_with?("/", "~") ? root : @config["abs_output_path"].sub(Dir.home, "~")
     end
 
     def each_variant

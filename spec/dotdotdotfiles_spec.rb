@@ -118,6 +118,13 @@ RSpec.describe Dotdotdotfiles do
       expect { Dotdotdotfiles::Dotfiles.new.compile }.not_to raise_error
     end
 
+    it "resolves relative paths against the manifest, whatever the working directory" do
+      write_manifest(templates_path: ".", output_path: "out")
+      File.symlink(repo_manifest, home_manifest)
+      config = Dir.chdir(@tmp) { Dotdotdotfiles::Dotfiles.new.config }
+      expect(config).to include("abs_templates_path" => repo, "abs_output_path" => "#{repo}/out")
+    end
+
     it "expands ~ in the manifest's paths" do
       write_manifest(templates_path: "~/templates", output_path: "~/out")
       expect(Dotdotdotfiles::Dotfiles.new.config)
@@ -146,6 +153,13 @@ RSpec.describe Dotdotdotfiles do
       expect(df.config).to include("files" => [], "secrets" => [])
       expect { [df.encrypt, df.compile(prune: true), df.link] }.not_to raise_error
       expect(File.read(home_manifest)).to include("# files:")
+    end
+
+    it "stores relative arguments as absolute paths and keeps ~" do
+      Dotdotdotfiles::Dotfiles.setup(input: "in", output: "~/out")
+      expect(YAML.safe_load(File.read(home_manifest)))
+        .to include("templates_path" => "#{repo}/in", "output_path" => "~/out")
+      expect(Dir).to exist("#{repo}/in").and exist("#{home}/out")
     end
 
     it "keeps an existing manifest" do
@@ -405,6 +419,15 @@ RSpec.describe Dotdotdotfiles do
         rm -rf ~/.vimrc
         ln -s #{repo}/out/.vimrc/server/.vimrc ~/.vimrc
       SH
+    end
+
+    it "writes a relative output path as seen from the home directory" do
+      FileUtils.mkdir_p("#{home}/dotfiles")
+      write_manifest("#{home}/dotfiles/.dotfiles.yml", templates_path: ".", output_path: "out",
+                                                       files: [entry(".rc", variant("default"))])
+      Dotdotdotfiles::Dotfiles.new(config: "#{home}/dotfiles/.dotfiles.yml")
+                              .generate_link_script(variant_names: %w[default])
+      expect(File.read("#{home}/dotfiles/link_default.sh")).to include("ln -s ~/dotfiles/out/.rc/default/.rc ~/.rc")
     end
 
     it "quotes names for the shell" do
