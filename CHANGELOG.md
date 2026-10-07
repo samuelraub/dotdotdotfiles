@@ -1,5 +1,7 @@
 ## [Unreleased]
 
+## [0.2.0] - 2026-10-07
+
 - Requires Ruby 3.3 or newer. The gemspec used to allow 2.6, which was never tested
 - Look up the manifest via `--config` / `DOTDOTDOTFILES_CONFIG`, then `./.dotfiles.yml`, then `~/.dotfiles.yml`
 - Exit non-zero and list the checked paths when no manifest is found, instead of returning silently
