@@ -10,9 +10,6 @@ require "rubocop/rake_task"
 RuboCop::RakeTask.new
 
 namespace :dev do
-  task :setup do
-    ruby "-I lib exe/dotdotdotfiles setup"
-  end
   task :compile do
     ruby "-I lib exe/dotdotdotfiles compile -p"
   end
