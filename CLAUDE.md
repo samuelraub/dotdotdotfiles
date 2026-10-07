@@ -19,7 +19,14 @@ ruby -I lib exe/dotdotdotfiles <command>   # run the CLI from source without ins
 
 `rake dev:compile` and `rake dev:link` wrap the last form (`compile -p` and `link`).
 
-`rake release` cannot work as-is; `allowed_push_host` and the URLs in the gemspec are still placeholders.
+## Releasing
+
+The gem is not on rubygems.org; a release is a git tag with a GitHub release. Two steps, because `main` only changes through pull requests:
+
+1. A pull request that makes `main` say the new version: `VERSION` in `lib/dotdotdotfiles/version.rb` (and with it `Gemfile.lock`), the entries under `[Unreleased]` in `CHANGELOG.md` moved under a `## [x.y.z] - date` heading (leaving `[Unreleased]` empty), and the `tag:` line in the README.
+2. The `Release` workflow (`workflow_dispatch` on `main`). It checks those against each other and against the existing tags, runs CI, then creates the tag `vx.y.z` and a GitHub release with that changelog section as notes. It commits nothing; `dry_run` only checks.
+
+So every change a user will notice needs a line under `[Unreleased]` when it is made. Do not use `rake release`: it would tag and push by itself, and the gemspec refuses the push to rubygems.org.
 
 ## Manifest lookup and the real home directory
 
