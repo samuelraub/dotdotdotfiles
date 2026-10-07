@@ -18,7 +18,27 @@ If bundler is not being used to manage dependencies, install the gem by executin
 
 ## Usage
 
-TODO: Write usage instructions here
+### Manifest location
+
+Every command reads its manifest from the first of these that applies:
+
+1. `--config PATH` (`-c`), or the `DOTDOTDOTFILES_CONFIG` environment variable. An explicit path that does not exist
+   is an error; there is no fallback.
+2. `.dotfiles.yml` in the current working directory
+3. `~/.dotfiles.yml`
+
+If none is found, the command lists the paths it checked and exits non-zero.
+
+`dotdotdotfiles link` also symlinks `~/.dotfiles.yml` to the manifest it used, so later runs work from any directory.
+An existing `~/.dotfiles.yml` that is a different file is reported and left untouched.
+
+`dotdotdotfiles setup -i TEMPLATES -o OUTPUT` writes a new manifest to `~/.dotfiles.yml`, or to the explicit path
+from 1.
+
+On a new machine, with the manifest kept in the dotfiles repository:
+
+    $ cd ~/dotfiles
+    $ dotdotdotfiles compile && dotdotdotfiles link
 
 ## Development
 

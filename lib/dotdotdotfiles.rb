@@ -9,18 +9,50 @@ require_relative "dotdotdotfiles/version"
 module Dotdotdotfiles
   class Error < StandardError; end
 
+  # Finds the manifest: explicit path, then the working directory, then home.
+  module Manifest
+    NAME = ".dotfiles.yml"
+    ENV_VAR = "DOTDOTDOTFILES_CONFIG"
+
+    def self.home
+      File.join(Dir.home, NAME)
+    end
+
+    def self.explicit(override = nil)
+      path = override || ENV[ENV_VAR]
+      File.expand_path(path) unless path.to_s.empty?
+    end
+
+    def self.candidates(override = nil)
+      explicit = explicit(override)
+      return [explicit] if explicit
+
+      [File.join(Dir.pwd, NAME), home].uniq
+    end
+
+    def self.resolve(override = nil)
+      checked = candidates(override)
+      checked.find { |path| File.exist?(path) } ||
+        raise(Error, "No manifest found. Checked:\n#{checked.map { |path| "  #{path}" }.join("\n")}\n" \
+                     "Run `dotdotdotfiles setup`, pass --config or set #{ENV_VAR}.")
+    end
+  end
+
   class Dotfiles
     attr_accessor :config
+    attr_reader :config_path
 
-    def initialize
-      @config = YAML.safe_load(File.read("#{Dir.home}/.dotfiles.yml"))
+    def initialize(config: nil)
+      @config_path = Manifest.resolve(config)
+      @config = YAML.safe_load(File.read(@config_path))
       @config["abs_output_path"] = File.expand_path(@config["output_path"])
       @config["abs_templates_path"] = File.expand_path(@config["templates_path"])
     end
 
-    def self.setup(input:, output:)
-      if File.exist?("#{Dir.home}/.dotfiles.yml")
-        puts "-- You already have a .dotfiles.yml --"
+    def self.setup(input:, output:, config: nil)
+      path = Manifest.explicit(config) || Manifest.home
+      if File.exist?(path)
+        puts "-- You already have a manifest at #{path} --"
         return
       end
 
@@ -28,8 +60,8 @@ module Dotdotdotfiles
       defaults["templates_path"] = input
       defaults["output_path"] = output
       custom_config = YAML.dump(defaults)
-      File.write("#{Dir.home}/.dotfiles.yml", custom_config)
-      puts "-- Config created --"
+      File.write(path, custom_config)
+      puts "-- Config created at #{path} --"
 
       FileUtils.mkdir_p(File.expand_path(input))
       FileUtils.mkdir_p(File.expand_path(output))
@@ -50,6 +82,18 @@ module Dotdotdotfiles
                            "#{Dir.home}/#{link}")
           end
         end
+      end
+      link_config
+    end
+
+    # Lets later runs find the manifest from any directory.
+    def link_config
+      home = Manifest.home
+      if !File.exist?(home) && !File.symlink?(home)
+        puts "#{@config_path} -> #{home}"
+        FileUtils.ln_s(@config_path, home)
+      elsif !File.exist?(home) || File.realpath(home) != File.realpath(@config_path)
+        puts "-- #{home} already exists and is not #{@config_path}; leaving it alone --"
       end
     end
 

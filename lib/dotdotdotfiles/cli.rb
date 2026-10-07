@@ -5,14 +5,8 @@ require "dotdotdotfiles"
 
 module Dotdotdotfiles
   class CLI < Thor
-    def initialize(*args)
-      super
-      begin
-        @df = Dotfiles.new
-      rescue Errno::ENOENT
-        puts "-- No config file found. Please run `dotdotdotfiles setup` first. --"
-      end
-    end
+    class_option :config, aliases: "-c", type: :string,
+                          desc: "Manifest path (default: $DOTDOTDOTFILES_CONFIG, ./.dotfiles.yml, ~/.dotfiles.yml)"
 
     def self.exit_on_failure?
       true
@@ -23,7 +17,7 @@ module Dotdotdotfiles
     method_option :output, aliases: "-o", type: :string, required: true
 
     def setup
-      Dotfiles.setup(input: options[:input], output: options[:output])
+      Dotfiles.setup(input: options[:input], output: options[:output], config: options[:config])
     end
 
     desc "compile", "Compiles your ERB templates to the respective out directories."
@@ -31,37 +25,37 @@ module Dotdotdotfiles
     method_option :encrypt, aliases: "-e", type: :boolean, required: false
 
     def compile
-      return unless File.exist? "#{Dir.home}/.dotfiles.yml"
+      df.prune if options[:prune]
+      df.encrypt if options[:encrypt]
 
-      @df.prune if options[:prune]
-      @df.encrypt if options[:encrypt]
-
-      @df.compile
+      df.compile
     end
 
     desc "link", "Links the compiled files into the home directory."
 
     def link
-      return unless File.exist? "#{Dir.home}/.dotfiles.yml"
-
-      @df.link
+      df.link
     end
 
     desc "script", "Generates a script that creates symlinks for the desired variants."
     method_option :variants, aliases: "-v", type: :array, required: true
 
     def script
-      return unless File.exist? "#{Dir.home}/.dotfiles.yml"
-
-      @df.generate_link_script(variant_names: options[:variants])
+      df.generate_link_script(variant_names: options[:variants])
     end
 
     desc "encrypt", "Encrypts the secrets defined in the .dotfiles.yml"
 
     def encrypt
-      return unless File.exist? "#{Dir.home}/.dotfiles.yml"
+      df.encrypt
+    end
 
-      @df.encrypt
+    no_commands do
+      def df
+        @df ||= Dotfiles.new(config: options[:config])
+      rescue Error => e
+        raise Thor::Error, e.message
+      end
     end
   end
 end
