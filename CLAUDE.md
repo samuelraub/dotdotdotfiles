@@ -92,6 +92,6 @@ Renaming locals inside `render` is therefore a breaking change for users' templa
 
 ## Conventions
 
-- RuboCop: double-quoted strings, 120-column lines, `TargetRubyVersion: 2.6`.
-- `.ruby-version` and CI both use 3.3.4; the gemspec allows `>= 2.6.0`, which is also rubocop's target.
+- RuboCop: double-quoted strings, 120-column lines, `TargetRubyVersion: 3.3`.
+- The gemspec requires Ruby `>= 3.3.0`, which is also rubocop's target. CI tests 3.3 (the `.ruby-version`) and 4.0.
 - Commit messages follow `type(scope): subject`, e.g. `fix(CLI): don't prune non-compiled files`.
