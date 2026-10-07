@@ -103,8 +103,9 @@ RSpec.describe Dotdotdotfiles do
     end
 
     it "rejects files and variants without a name" do
-      [[entry("", variant("default"))], [entry(".rc", variant(""))], [entry(".rc", "default")], [".rc"],
-       { ".rc" => {} }].each do |files|
+      bad_names = ["", "/", "..", "a/b", 5].map { |name| [entry(name, variant("default"))] }
+      bad_variants = ["", false].map { |name| [entry(".rc", variant(name))] }
+      [*bad_names, *bad_variants, [entry(".rc", "default")], [".rc"], { ".rc" => {} }].each do |files|
         write_manifest(files: files)
         expect { Dotdotdotfiles::Dotfiles.new }.to raise_error(Dotdotdotfiles::Error, /needs a name/)
       end
@@ -136,6 +137,14 @@ RSpec.describe Dotdotdotfiles do
       Dotdotdotfiles::Dotfiles.setup(input: repo, output: "#{repo}/out", config: repo_manifest)
       expect(File).to exist(repo_manifest)
       expect(File).not_to exist(home_manifest)
+    end
+
+    it "writes a manifest that loads and documents the entries" do
+      Dotdotdotfiles::Dotfiles.setup(input: repo, output: "#{repo}/out")
+      df = Dotdotdotfiles::Dotfiles.new
+      expect(df.config).to include("files" => [], "secrets" => [])
+      expect { [df.encrypt, df.compile(prune: true), df.link] }.not_to raise_error
+      expect(File.read(home_manifest)).to include("# files:")
     end
 
     it "keeps an existing manifest" do
@@ -251,6 +260,34 @@ RSpec.describe Dotdotdotfiles do
       expect(File.read("#{home}/.a")).to eq "mine"
     end
 
+    it "refuses two links to the same target" do
+      [".a", ".b"].each { |name| compiled(name, "default") }
+      File.write("#{home}/.rc", "mine")
+      write_manifest(files: [entry(".a", variant("default", ".rc")), entry(".b", variant("default", "x/../.rc"))])
+      expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /more than once/)
+      expect(File.read("#{home}/.rc")).to eq "mine"
+    end
+
+    it "refuses a link that would replace its own source" do
+      FileUtils.mkdir_p("#{home}/dotfiles/out/.rc/default")
+      File.write("#{home}/dotfiles/out/.rc/default/.rc", "")
+      write_manifest(output_path: "#{home}/dotfiles/out", files: [entry(".rc", variant("default", "dotfiles"))])
+      expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /its own source/)
+      expect(File).to exist("#{home}/dotfiles/out/.rc/default/.rc")
+    end
+
+    it "fails when the target cannot be removed" do
+      compiled(".rc", "default")
+      FileUtils.mkdir_p("#{home}/.rc/locked")
+      File.write("#{home}/.rc/locked/file", "")
+      File.chmod(0o500, "#{home}/.rc/locked")
+      write_manifest(files: [entry(".rc", variant("default", ".rc"))])
+      expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(SystemCallError)
+      expect(File).not_to be_symlink("#{home}/.rc/.rc")
+    ensure
+      File.chmod(0o700, "#{home}/.rc/locked")
+    end
+
     it "accepts a single link given as a string" do
       compiled(".rc", "default")
       write_manifest(files: [{ "name" => ".rc", "variants" => [{ "name" => "default", "links" => ".rc" }] }])
@@ -335,6 +372,14 @@ RSpec.describe Dotdotdotfiles do
       expect { df.encrypt }.to raise_error(Dotdotdotfiles::Error, /age .* failed/)
       expect { df.compile }.to raise_error(Dotdotdotfiles::Error, /age .* failed/)
       expect(Dir).not_to exist("#{repo}/out")
+    end
+
+    it "accepts a single secret given as a string" do
+      generate_key
+      File.write("#{repo}/token", "s3cret")
+      write_manifest(secrets: "token")
+      Dotdotdotfiles::Dotfiles.new.encrypt
+      expect(File).to exist("#{repo}/token.enc")
     end
 
     it "handles paths with spaces" do

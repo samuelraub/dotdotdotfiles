@@ -26,7 +26,7 @@ ruby -I lib exe/dotdotdotfiles <command>   # run the CLI from source without ins
 `Dotdotdotfiles::Manifest` is the only place that knows where the manifest is: `--config` / `DOTDOTDOTFILES_CONFIG`, then `./.dotfiles.yml`, then `~/.dotfiles.yml`. `Manifest.load` validates it. Expected failures raise `Dotdotdotfiles::Error`; `CLI.start` turns those and `SystemCallError` (e.g. a missing template) into a message on stderr and exit 1.
 
 - The specs run with a temp dir as `HOME` and as cwd (the `around` hook in `spec/dotdotdotfiles_spec.rb`); keep new examples inside it, since link targets are always resolved against `Dir.home`.
-- **`rake dev:*` and `ruby -I lib exe/dotdotdotfiles ...` are destructive on this machine**: `link` does `rm_rf` on every link target before symlinking, and `compile -p` deletes everything in the output directory except `compile: false` entries. Try things out with `HOME=<tmpdir>`.
+- **`rake dev:*` and `ruby -I lib exe/dotdotdotfiles ...` are destructive on this machine**: `link` removes every link target before symlinking, and `compile -p` deletes everything in the output directory except `compile: false` entries. Try things out with `HOME=<tmpdir>`.
 
 ## Architecture
 
@@ -37,7 +37,7 @@ Two files carry all the logic:
 
 ### Config shape (`.dotfiles.yml`)
 
-Skeleton in `lib/data/default_config.yaml`:
+`setup` writes `lib/data/default_config.yaml` (empty `files`/`secrets`) followed by the commented example in `lib/data/example.yaml`. `Manifest.load` requires both paths, and file and variant names that are single path segments. The shape:
 
 ```yaml
 templates_path: ~/dotfiles        # where <name>.erb, secrets and .key.txt live
@@ -81,7 +81,7 @@ Renaming locals inside `render` is therefore a breaking change for users' templa
 
 ### `link` vs `script`
 
-`link` honours each variant's `links` array (and skips variants without one), then symlinks `~/.dotfiles.yml` to the manifest in use unless something else is already there. `Links.check` validates every link (inside home, source exists) before any target is replaced. `script -v a b` writes `<templates_path>/link_a_b.sh` for use on another machine, but ignores `links` and always targets `~/<file name>`, using the unexpanded `output_path`.
+`link` honours each variant's `links` array (and skips variants without one), then symlinks `~/.dotfiles.yml` to the manifest in use unless something else is already there. `Links.check` validates every link (inside home, unique target, not an ancestor of its source, source exists) before any target is replaced. `script -v a b` writes `<templates_path>/link_a_b.sh` for use on another machine, but ignores `links` and always targets `~/<file name>`, using the unexpanded `output_path`.
 
 ## Conventions
 

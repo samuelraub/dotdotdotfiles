@@ -39,6 +39,12 @@ module Dotdotdotfiles
                      "Run `dotdotdotfiles setup`, pass --config or set #{ENV_VAR}.")
     end
 
+    def self.skeleton(input, output)
+      defaults = YAML.safe_load(File.read("#{__dir__}/data/default_config.yaml"))
+      YAML.dump(defaults.merge("templates_path" => input, "output_path" => output)) +
+        File.read("#{__dir__}/data/example.yaml")
+    end
+
     def self.load(path)
       config = YAML.safe_load(File.read(path), aliases: true)
       unless config.is_a?(Hash) && %w[output_path templates_path].all? { |key| !config[key].to_s.empty? }
@@ -50,12 +56,16 @@ module Dotdotdotfiles
       raise Error, "#{path} is not valid YAML: #{e.message}"
     end
 
-    # Names become path segments, so an empty one would address a parent directory.
+    # Names become path segments, so anything else would address another directory.
     def self.named(path, files)
       entries = files.flat_map { |file| [file, *(file["variants"] if file.is_a?(Hash))] }
-      return files if entries.all? { |entry| entry.is_a?(Hash) && !entry["name"].to_s.empty? }
+      return files if entries.all? { |entry| entry.is_a?(Hash) && segment?(entry["name"]) }
 
-      raise Error, "#{path}: every file and variant needs a name."
+      raise Error, "#{path}: every file and variant needs a name, and names must not contain \"/\"."
+    end
+
+    def self.segment?(name)
+      name.is_a?(String) && !["", ".", ".."].include?(name) && !name.include?("/")
     end
   end
 
@@ -75,10 +85,19 @@ module Dotdotdotfiles
   module Links
     # Runs over every link before any target is replaced.
     def self.check(pairs, home)
-      pairs.each do |source, target|
-        raise Error, "#{source}: link #{target} is not inside #{home}." unless target.start_with?("#{home}/")
-        raise Error, "#{source} does not exist. Run `dotdotdotfiles compile` first." unless File.exist?(source)
-      end
+      targets = pairs.map(&:last)
+      duplicate = targets.find { |target| targets.count(target) > 1 }
+      raise Error, "#{duplicate} is linked more than once." if duplicate
+
+      pairs.each { |source, target| check_pair(source, target, home) }
+    end
+
+    def self.check_pair(source, target, home)
+      raise Error, "#{source}: link #{target} is not inside #{home}." unless target.start_with?("#{home}/")
+      raise Error, "#{source}: link #{target} would replace its own source." if source.start_with?("#{target}/")
+      return if File.exist?(source)
+
+      raise Error, "#{source} does not exist. Run `dotdotdotfiles compile`, or create it if it is not compiled."
     end
 
     # Lets later runs find the manifest from any directory.
@@ -109,8 +128,7 @@ module Dotdotdotfiles
       path = Manifest.explicit(config) || Manifest.home
       return puts("-- You already have a manifest at #{path} --") if File.exist?(path)
 
-      defaults = YAML.safe_load(File.read("#{__dir__}/data/default_config.yaml"))
-      File.write(path, YAML.dump(defaults.merge("templates_path" => input, "output_path" => output)))
+      File.write(path, Manifest.skeleton(input, output))
       puts "-- Config created at #{path} --"
 
       [input, output].each { |dir| FileUtils.mkdir_p(File.expand_path(dir)) }
@@ -131,7 +149,8 @@ module Dotdotdotfiles
 
     def link_file(source, target)
       puts "#{source} -> #{target}"
-      FileUtils.rm_rf(target)
+      # Unlike rm_rf this raises, so a target that cannot be removed is not linked into.
+      FileUtils.rm_r(target) if File.exist?(target) || File.symlink?(target)
       FileUtils.mkdir_p(File.dirname(target))
       FileUtils.ln_s(source, target)
     end
@@ -184,7 +203,7 @@ module Dotdotdotfiles
 
     def encrypt
       atp = @config["abs_templates_path"]
-      @config["secrets"].to_a.each do |secret|
+      Array(@config["secrets"]).each do |secret|
         Age.run("-e", "-i", "#{atp}/.key.txt", "-o", "#{atp}/#{secret}.enc", "#{atp}/#{secret}")
       end
     end

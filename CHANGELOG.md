@@ -8,12 +8,16 @@
 - Allow thor 1.x from 1.3 on
 - `link` refuses a link that does not resolve to a path inside the home directory (an empty one used to delete it)
 - `link` checks every link and source first, and replaces nothing when one of them is invalid
-- `links` may be a single string instead of a list
+- `link` refuses two links to the same target, and a link that would replace its own source
+- `link` fails when an existing target cannot be removed, instead of linking into it
+- `links` and `secrets` may be a single string instead of a list
+- File and variant names must be non-empty strings without `/`
+- `setup` writes a manifest with empty `files` and `secrets` plus a commented example, so it loads as written
 - `script` quotes file names for the shell
 - `compile` renders every template before it writes or prunes, so a failing template leaves the output as it was
 - `compile --prune` no longer fails when the output directory does not exist yet
 - A failing `age` call aborts with its error instead of rendering an empty secret; paths with spaces work
-- Manifest problems (invalid YAML, missing `output_path`/`templates_path`, files or variants without a name) and
+- Manifest problems (invalid YAML, missing `output_path`/`templates_path`, invalid file or variant names) and
   file system errors such as a missing template are reported as a message with exit status 1 instead of a
   backtrace; YAML aliases are accepted
 

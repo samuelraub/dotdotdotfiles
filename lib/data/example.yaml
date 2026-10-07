@@ -1,0 +1,18 @@
+#
+# Example entries:
+#
+# files:
+#   - name: .zshrc              # rendered from <templates_path>/.zshrc.erb
+#     variants:
+#       - name: local           # templates can branch on v[:local]
+#         links:                # relative to the home directory
+#           - .zshrc
+#       - name: server          # no links: compiled, but not linked
+#   - name: kitty
+#     compile: false            # edited directly in <output_path>/kitty/default/kitty
+#     variants:
+#       - name: default
+#         links:
+#           - .config/kitty
+# secrets:                      # encrypted with age, read in templates via d.decrypt("name")
+#   - .zshrc.secrets
