@@ -1,20 +1,45 @@
 # Dotdotdotfiles
 
-TODO: Delete this and the text below, and describe your gem
+Keeps dotfiles as ERB templates in one directory, renders them into an output
+directory per variant (say `default`, `local`, `server`), and symlinks the
+rendered files into `$HOME`. A manifest, `.dotfiles.yml`, lists the files, their
+variants and where each one is linked. Secrets can be kept encrypted with
+[age](https://age-encryption.org) next to the templates.
 
-Welcome to your new gem! In this directory, you'll find the files you need to be able to package up your Ruby library into a gem. Put your Ruby code in the file `lib/dotdotdotfiles`. To experiment with that code, run `bin/console` for an interactive prompt.
+```
+dotdotdotfiles setup -i ~/dotfiles -o ~/dotfiles/out   # manifest and directories
+dotdotdotfiles compile [--prune] [--encrypt]           # render the templates
+dotdotdotfiles link                                    # symlink into $HOME
+dotdotdotfiles script -v default server                # a shell script that links those variants
+dotdotdotfiles encrypt                                 # encrypt the secrets named in the manifest
+```
+
+`dotdotdotfiles help` lists the commands and their options.
+
+`link` replaces what is at a link's place, and `compile --prune` deletes from
+the output directory what the manifest no longer names. `link` checks every
+link before it replaces anything, and `compile` renders every template before
+it writes or prunes.
 
 ## Installation
 
-TODO: Replace `UPDATE_WITH_YOUR_GEM_NAME_PRIOR_TO_RELEASE_TO_RUBYGEMS_ORG` with your gem name right after releasing it to RubyGems.org. Please do not do it earlier due to security reasons. Alternatively, replace this section with instructions to install your gem from git if you don't plan to release to RubyGems.org.
+The gem is not on rubygems.org; releases are tags of this repository.
 
-Install the gem and add to the application's Gemfile by executing:
+In a Gemfile:
 
-    $ bundle add UPDATE_WITH_YOUR_GEM_NAME_PRIOR_TO_RELEASE_TO_RUBYGEMS_ORG
+```ruby
+gem "dotdotdotfiles", github: "samuelraub/dotdotdotfiles", tag: "v0.2.0"
+```
 
-If bundler is not being used to manage dependencies, install the gem by executing:
+As a command on your machine:
 
-    $ gem install UPDATE_WITH_YOUR_GEM_NAME_PRIOR_TO_RELEASE_TO_RUBYGEMS_ORG
+```sh
+git clone https://github.com/samuelraub/dotdotdotfiles && cd dotdotdotfiles
+git checkout <tag>
+bin/setup && bundle exec rake install
+```
+
+Working with secrets needs the `age` command.
 
 ## Usage
 
@@ -45,13 +70,12 @@ On a new machine, with the manifest kept in the dotfiles repository:
 
 ## Development
 
-After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake spec` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
+`bin/setup` installs the dependencies; `bundle exec rake` runs the specs and
+RuboCop, which is what CI runs. The specs use a temporary directory as `HOME`.
+Running the command from a checkout against your real home directory replaces
+real files; try things out with `HOME=<some empty directory>`.
 
-To install this gem onto your local machine, run `bundle exec rake install`. To release a new version, update the version number in `version.rb`, and then run `bundle exec rake release`, which will create a git tag for the version, push git commits and the created tag, and push the `.gem` file to [rubygems.org](https://rubygems.org).
-
-## Contributing
-
-Bug reports and pull requests are welcome on GitHub at https://github.com/[USERNAME]/dotdotdotfiles.
+Releases are described in `CLAUDE.md`.
 
 ## License
 

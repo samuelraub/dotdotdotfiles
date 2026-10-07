@@ -9,15 +9,16 @@ Gem::Specification.new do |spec|
   spec.email = ["samuel.raub@gmail.com"]
 
   spec.summary = "Maintain your dotfiles with templates, version them and deploy them anywhere"
-  spec.homepage = "https://example.com"
+  spec.homepage = "https://github.com/samuelraub/dotdotdotfiles"
   spec.license = "MIT"
   spec.required_ruby_version = ">= 2.6.0"
 
-  spec.metadata["allowed_push_host"] = "TODO: Set to your gem server 'https://example.com'"
+  # Not published to rubygems.org: releases are git tags. This makes `gem push` refuse.
+  spec.metadata["allowed_push_host"] = "https://rubygems.invalid"
 
   spec.metadata["homepage_uri"] = spec.homepage
-  spec.metadata["source_code_uri"] = "https://example.com"
-  spec.metadata["changelog_uri"] = "https://example.com"
+  spec.metadata["source_code_uri"] = spec.homepage
+  spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
 
   # Specify which files should be added to the gem when it is released.
   # The `git ls-files -z` loads the files in the RubyGem that have been added into git.
