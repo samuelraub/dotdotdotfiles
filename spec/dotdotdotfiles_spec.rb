@@ -102,6 +102,14 @@ RSpec.describe Dotdotdotfiles do
       end
     end
 
+    it "rejects files and variants without a name" do
+      [[entry("", variant("default"))], [entry(".rc", variant(""))], [entry(".rc", "default")], [".rc"],
+       { ".rc" => {} }].each do |files|
+        write_manifest(files: files)
+        expect { Dotdotdotfiles::Dotfiles.new }.to raise_error(Dotdotdotfiles::Error, /needs a name/)
+      end
+    end
+
     it "accepts YAML aliases, a missing files list and entries without variants" do
       File.write(repo_manifest, "output_path: &dir #{repo}\ntemplates_path: *dir\n")
       expect { Dotdotdotfiles::Dotfiles.new.compile }.not_to raise_error
@@ -217,13 +225,37 @@ RSpec.describe Dotdotdotfiles do
       expect(File.read("#{home}/.rc")).to eq "mine"
     end
 
-    it "refuses a link that resolves to the home directory itself" do
-      ["", ".", nil].each do |link|
-        write_manifest(files: [entry("", variant("", link))])
-        FileUtils.mkdir_p("#{repo}/out")
-        expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /empty link/)
+    it "refuses a link that is not inside the home directory" do
+      compiled(".rc", "default")
+      File.write("#{@tmp}/precious", "mine")
+      ["", ".", nil, "..", "x/../..", "../precious", "#{@tmp}/precious"].each do |link|
+        write_manifest(files: [entry(".rc", variant("default", link))])
+        expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /not inside/)
       end
+      expect(File.read("#{@tmp}/precious")).to eq "mine"
+    end
+
+    it "refuses the home directory itself when HOME ends in a slash" do
+      compiled(".rc", "default")
+      write_manifest(files: [entry(".rc", variant("default", ""))])
+      ENV["HOME"] = "#{home}/"
+      expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /not inside/)
       expect(Dir).to exist(home)
+    end
+
+    it "replaces nothing when a later link is invalid" do
+      compiled(".a", "default")
+      File.write("#{home}/.a", "mine")
+      write_manifest(files: [entry(".a", variant("default", ".a")), entry(".b", variant("default", ".b"))])
+      expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /compile/)
+      expect(File.read("#{home}/.a")).to eq "mine"
+    end
+
+    it "accepts a single link given as a string" do
+      compiled(".rc", "default")
+      write_manifest(files: [{ "name" => ".rc", "variants" => [{ "name" => "default", "links" => ".rc" }] }])
+      Dotdotdotfiles::Dotfiles.new.link
+      expect(File).to be_symlink("#{home}/.rc")
     end
 
     it "skips variants without links" do
@@ -266,15 +298,25 @@ RSpec.describe Dotdotdotfiles do
         ln -s #{repo}/out/.vimrc/server/.vimrc ~/.vimrc
       SH
     end
+
+    it "quotes names for the shell" do
+      write_manifest(files: [entry("my rc", variant("default"))])
+      Dotdotdotfiles::Dotfiles.new.generate_link_script(variant_names: %w[default])
+      expect(File.read("#{repo}/link_default.sh")).to eq <<~SH
+        rm -rf ~/my\\ rc
+        ln -s #{repo}/out/my\\ rc/default/my\\ rc ~/my\\ rc
+      SH
+    end
   end
 
   describe "secrets" do
-    before do
+    def generate_key
       skip "age is not installed" unless system("which age age-keygen > /dev/null 2>&1")
       system("age-keygen -o #{repo}/.key.txt > /dev/null 2>&1")
     end
 
     it "encrypts the listed secrets and decrypts them for templates" do
+      generate_key
       File.write("#{repo}/token", "s3cret")
       File.write("#{repo}/.rc.erb", "token=<%= d.decrypt('token') %>")
       write_manifest(files: [entry(".rc", variant("default"))], secrets: ["token"])
@@ -286,6 +328,7 @@ RSpec.describe Dotdotdotfiles do
     end
 
     it "fails instead of rendering an empty secret" do
+      generate_key
       File.write("#{repo}/.rc.erb", "token=<%= d.decrypt('missing') %>")
       write_manifest(files: [entry(".rc", variant("default"))], secrets: ["missing"])
       df = Dotdotdotfiles::Dotfiles.new
@@ -295,6 +338,7 @@ RSpec.describe Dotdotdotfiles do
     end
 
     it "handles paths with spaces" do
+      generate_key
       File.write("#{repo}/my token", "s3cret")
       write_manifest(secrets: ["my token"])
       df = Dotdotdotfiles::Dotfiles.new
@@ -312,7 +356,7 @@ RSpec.describe Dotdotdotfiles do
     it "does nothing when no secrets are listed" do
       write_manifest
       Dotdotdotfiles::Dotfiles.new.encrypt
-      expect(Dir.children(repo)).to contain_exactly(".dotfiles.yml", ".key.txt")
+      expect(Dir.children(repo)).to eq [".dotfiles.yml"]
     end
   end
 
@@ -327,6 +371,13 @@ RSpec.describe Dotdotdotfiles do
       expect { described_class.start(%w[compile]) }
         .to raise_error(SystemExit) { |e| expect(e.status).to eq 1 }
         .and output(/#{Regexp.escape(repo_manifest)}/).to_stderr
+    end
+
+    it "reports a missing template without a backtrace" do
+      write_manifest(files: [entry(".rc", variant("default"))])
+      expect { described_class.start(%w[compile]) }
+        .to raise_error(SystemExit) { |e| expect(e.status).to eq 1 }
+        .and output(/No such file.*\.rc\.erb/).to_stderr
     end
 
     it "turns any library error into a message and exit status 1" do

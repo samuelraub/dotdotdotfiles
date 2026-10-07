@@ -4,6 +4,7 @@ require "yaml"
 require "fileutils"
 require "erb"
 require "open3"
+require "shellwords"
 
 require_relative "dotdotdotfiles/version"
 
@@ -44,9 +45,17 @@ module Dotdotdotfiles
         raise Error, "#{path} must set output_path and templates_path."
       end
 
-      config.merge("files" => Array(config["files"]))
+      config.merge("files" => named(path, Array(config["files"])))
     rescue Psych::Exception => e
       raise Error, "#{path} is not valid YAML: #{e.message}"
+    end
+
+    # Names become path segments, so an empty one would address a parent directory.
+    def self.named(path, files)
+      entries = files.flat_map { |file| [file, *(file["variants"] if file.is_a?(Hash))] }
+      return files if entries.all? { |entry| entry.is_a?(Hash) && !entry["name"].to_s.empty? }
+
+      raise Error, "#{path}: every file and variant needs a name."
     end
   end
 
@@ -59,6 +68,28 @@ module Dotdotdotfiles
       output
     rescue Errno::ENOENT
       raise Error, "age is not installed."
+    end
+  end
+
+  # The checks around linking into the home directory.
+  module Links
+    # Runs over every link before any target is replaced.
+    def self.check(pairs, home)
+      pairs.each do |source, target|
+        raise Error, "#{source}: link #{target} is not inside #{home}." unless target.start_with?("#{home}/")
+        raise Error, "#{source} does not exist. Run `dotdotdotfiles compile` first." unless File.exist?(source)
+      end
+    end
+
+    # Lets later runs find the manifest from any directory.
+    def self.link_manifest(config_path)
+      home = Manifest.home
+      if !File.exist?(home) && !File.symlink?(home)
+        puts "#{config_path} -> #{home}"
+        FileUtils.ln_s(config_path, home)
+      elsif !File.exist?(home) || File.realpath(home) != File.realpath(config_path)
+        puts "-- #{home} already exists and is not #{config_path}; leaving it alone --"
+      end
     end
   end
 
@@ -88,34 +119,21 @@ module Dotdotdotfiles
     end
 
     def link
+      home = File.expand_path(Dir.home)
+      pairs = []
       each_variant do |file, variant|
-        next unless variant["links"].is_a? Array
-
-        variant["links"].each { |link| link_file(output_file(file, variant), "#{Dir.home}/#{link}") }
+        Array(variant["links"]).each { |link| pairs << [output_file(file, variant), File.expand_path(link.to_s, home)] }
       end
-      link_config
+      Links.check(pairs, home)
+      pairs.each { |source, target| link_file(source, target) }
+      Links.link_manifest(@config_path)
     end
 
     def link_file(source, target)
-      # An empty link would resolve to the home directory itself.
-      raise Error, "#{source} has an empty link." if File.expand_path(target) == Dir.home
-      raise Error, "#{source} does not exist. Run `dotdotdotfiles compile` first." unless File.exist?(source)
-
       puts "#{source} -> #{target}"
       FileUtils.rm_rf(target)
       FileUtils.mkdir_p(File.dirname(target))
       FileUtils.ln_s(source, target)
-    end
-
-    # Lets later runs find the manifest from any directory.
-    def link_config
-      home = Manifest.home
-      if !File.exist?(home) && !File.symlink?(home)
-        puts "#{@config_path} -> #{home}"
-        FileUtils.ln_s(@config_path, home)
-      elsif !File.exist?(home) || File.realpath(home) != File.realpath(@config_path)
-        puts "-- #{home} already exists and is not #{@config_path}; leaving it alone --"
-      end
     end
 
     # Renders everything before touching the output, so a broken template leaves it intact.
@@ -157,8 +175,9 @@ module Dotdotdotfiles
       each_variant do |file, variant|
         next unless variant_names.include? variant["name"]
 
-        script += "rm -rf ~/#{file["name"]}\n"
-        script += "ln -s #{output_file(file, variant, @config["output_path"])} ~/#{file["name"]}\n"
+        name, source = [file["name"], output_file(file, variant, "")].map { |part| Shellwords.escape(part) }
+        script += "rm -rf ~/#{name}\n"
+        script += "ln -s #{@config["output_path"]}#{source} ~/#{name}\n"
       end
       File.write("#{@config["abs_templates_path"]}/link_#{variant_names.join("_")}.sh", script)
     end

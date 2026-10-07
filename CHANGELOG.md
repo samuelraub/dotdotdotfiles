@@ -6,13 +6,16 @@
 - `setup` writes the manifest to the explicit path when one is given
 - `link` creates missing parent directories of a link target (e.g. `~/.config`) instead of failing
 - Allow thor 1.x from 1.3 on
-- `link` refuses a link that is empty or resolves to the home directory itself, which it used to delete
-- `link` stops before replacing a target whose source has not been compiled
+- `link` refuses a link that does not resolve to a path inside the home directory (an empty one used to delete it)
+- `link` checks every link and source first, and replaces nothing when one of them is invalid
+- `links` may be a single string instead of a list
+- `script` quotes file names for the shell
 - `compile` renders every template before it writes or prunes, so a failing template leaves the output as it was
 - `compile --prune` no longer fails when the output directory does not exist yet
 - A failing `age` call aborts with its error instead of rendering an empty secret; paths with spaces work
-- Manifest problems (invalid YAML, missing `output_path`/`templates_path`) are reported as a message with exit
-  status 1 instead of a backtrace; YAML aliases are accepted
+- Manifest problems (invalid YAML, missing `output_path`/`templates_path`, files or variants without a name) and
+  file system errors such as a missing template are reported as a message with exit status 1 instead of a
+  backtrace; YAML aliases are accepted
 
 ## [0.1.0] - 2024-02-01
 

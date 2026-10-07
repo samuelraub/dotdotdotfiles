@@ -15,7 +15,7 @@ module Dotdotdotfiles
 
     def self.start(*)
       super
-    rescue Error => e
+    rescue Error, SystemCallError => e
       warn e.message
       exit 1
     end
