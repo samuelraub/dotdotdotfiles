@@ -4,6 +4,7 @@
 - Exit non-zero and list the checked paths when no manifest is found, instead of returning silently
 - `link` symlinks `~/.dotfiles.yml` to the manifest in use, without replacing an existing one
 - `setup` writes the manifest to the explicit path when one is given
+- `link` creates missing parent directories of a link target (e.g. `~/.config`) instead of failing
 - Allow thor 1.x from 1.3 on
 
 ## [0.1.0] - 2024-02-01

@@ -70,14 +70,14 @@ module Dotdotdotfiles
     end
 
     def link
-      files = @config["files"]
-      files.each do |file|
+      @config["files"].each do |file|
         file["variants"].each do |variant|
           next unless variant["links"].is_a? Array
 
           variant["links"].each do |link|
             puts "#{config["abs_output_path"]}/#{file["name"]}/#{variant["name"]}/#{file["name"]} -> #{Dir.home}/#{link}"
             FileUtils.rm_rf("#{Dir.home}/#{link}")
+            FileUtils.mkdir_p(File.dirname("#{Dir.home}/#{link}"))
             FileUtils.ln_s("#{config["abs_output_path"]}/#{file["name"]}/#{variant["name"]}/#{file["name"]}",
                            "#{Dir.home}/#{link}")
           end
