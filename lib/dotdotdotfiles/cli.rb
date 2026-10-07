@@ -13,6 +13,13 @@ module Dotdotdotfiles
       true
     end
 
+    def self.start(*)
+      super
+    rescue Error => e
+      warn e.message
+      exit 1
+    end
+
     desc "setup", "Creates config, templates and output directories, if they don't exist."
     method_option :input, aliases: "-i", type: :string, required: true
     method_option :output, aliases: "-o", type: :string, required: true
@@ -26,10 +33,8 @@ module Dotdotdotfiles
     method_option :encrypt, aliases: "-e", type: :boolean, required: false
 
     def compile
-      df.prune if options[:prune]
       df.encrypt if options[:encrypt]
-
-      df.compile
+      df.compile(prune: options[:prune] == true)
     end
 
     desc "link", "Links the compiled files into the home directory."
@@ -54,8 +59,6 @@ module Dotdotdotfiles
     no_commands do
       def df
         @df ||= Dotfiles.new(config: options[:config])
-      rescue Error => e
-        raise Thor::Error, e.message
       end
     end
   end

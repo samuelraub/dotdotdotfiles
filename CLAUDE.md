@@ -23,7 +23,7 @@ ruby -I lib exe/dotdotdotfiles <command>   # run the CLI from source without ins
 
 ## Manifest lookup and the real home directory
 
-`Dotdotdotfiles::Manifest` is the only place that knows where the manifest is: `--config` / `DOTDOTDOTFILES_CONFIG`, then `./.dotfiles.yml`, then `~/.dotfiles.yml`. A missing manifest raises `Dotdotdotfiles::Error`, which the CLI turns into a `Thor::Error` (message on stderr, exit 1).
+`Dotdotdotfiles::Manifest` is the only place that knows where the manifest is: `--config` / `DOTDOTDOTFILES_CONFIG`, then `./.dotfiles.yml`, then `~/.dotfiles.yml`. `Manifest.load` validates it. Every expected failure raises `Dotdotdotfiles::Error`, which `CLI.start` turns into a message on stderr and exit 1.
 
 - The specs run with a temp dir as `HOME` and as cwd (the `around` hook in `spec/dotdotdotfiles_spec.rb`); keep new examples inside it, since link targets are always resolved against `Dir.home`.
 - **`rake dev:*` and `ruby -I lib exe/dotdotdotfiles ...` are destructive on this machine**: `link` does `rm_rf` on every link target before symlinking, and `compile -p` deletes everything in the output directory except `compile: false` entries. Try things out with `HOME=<tmpdir>`.
@@ -67,7 +67,7 @@ The rendered artefact for a file/variant pair is always:
 
 ### Template rendering
 
-`compile` calls `render` once per variant, which reads `<templates_path>/<name>.erb` and evaluates it with its own `binding`, so templates see these locals:
+`compile` calls `render` once per variant, which reads `<templates_path>/<name>.erb` and evaluates it with its own `binding`. Everything is rendered in memory before anything is pruned or written. Templates see these locals:
 
 - `v` — `{ <variant_name>: true }`, for branching: `<% if v[:server] %>`
 - `d` — the `Dotfiles` instance, mainly for `<%= d.decrypt("some_secret_file") %>`
@@ -77,7 +77,7 @@ Renaming locals inside `render` is therefore a breaking change for users' templa
 
 ### Secrets
 
-`encrypt` and `decrypt` shell out to `age`, using `<templates_path>/.key.txt` as the identity. Each name under `secrets` is encrypted to `<templates_path>/<name>.enc`; `decrypt(name)` returns the plaintext for use inside templates. `compile -e` re-encrypts before rendering.
+`encrypt` and `decrypt` run `age` through `Age.run` (no shell; a non-zero exit raises), using `<templates_path>/.key.txt` as the identity. Each name under `secrets` is encrypted to `<templates_path>/<name>.enc`; `decrypt(name)` returns the plaintext for use inside templates. `compile -e` re-encrypts before rendering.
 
 ### `link` vs `script`
 

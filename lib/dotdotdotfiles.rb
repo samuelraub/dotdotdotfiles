@@ -3,6 +3,7 @@
 require "yaml"
 require "fileutils"
 require "erb"
+require "open3"
 
 require_relative "dotdotdotfiles/version"
 
@@ -19,8 +20,8 @@ module Dotdotdotfiles
     end
 
     def self.explicit(override = nil)
-      path = override || ENV[ENV_VAR]
-      File.expand_path(path) unless path.to_s.empty?
+      path = [override, ENV[ENV_VAR]].find { |candidate| !candidate.to_s.empty? }
+      File.expand_path(path) if path
     end
 
     def self.candidates(override = nil)
@@ -36,6 +37,29 @@ module Dotdotdotfiles
         raise(Error, "No manifest found. Checked:\n#{checked.map { |path| "  #{path}" }.join("\n")}\n" \
                      "Run `dotdotdotfiles setup`, pass --config or set #{ENV_VAR}.")
     end
+
+    def self.load(path)
+      config = YAML.safe_load(File.read(path), aliases: true)
+      unless config.is_a?(Hash) && %w[output_path templates_path].all? { |key| !config[key].to_s.empty? }
+        raise Error, "#{path} must set output_path and templates_path."
+      end
+
+      config.merge("files" => Array(config["files"]))
+    rescue Psych::Exception => e
+      raise Error, "#{path} is not valid YAML: #{e.message}"
+    end
+  end
+
+  # Runs age without a shell, so paths need no quoting and failures are not silent.
+  module Age
+    def self.run(*args)
+      output, error, result = Open3.capture3("age", *args)
+      raise Error, "age #{args.join(" ")} failed: #{error.strip}" unless result.success?
+
+      output
+    rescue Errno::ENOENT
+      raise Error, "age is not installed."
+    end
   end
 
   # Renders, links and encrypts the files listed in the manifest.
@@ -45,7 +69,7 @@ module Dotdotdotfiles
 
     def initialize(config: nil)
       @config_path = Manifest.resolve(config)
-      @config = YAML.safe_load(File.read(@config_path))
+      @config = Manifest.load(@config_path)
       @config["abs_output_path"] = File.expand_path(@config["output_path"])
       @config["abs_templates_path"] = File.expand_path(@config["templates_path"])
     end
@@ -73,6 +97,10 @@ module Dotdotdotfiles
     end
 
     def link_file(source, target)
+      # An empty link would resolve to the home directory itself.
+      raise Error, "#{source} has an empty link." if File.expand_path(target) == Dir.home
+      raise Error, "#{source} does not exist. Run `dotdotdotfiles compile` first." unless File.exist?(source)
+
       puts "#{source} -> #{target}"
       FileUtils.rm_rf(target)
       FileUtils.mkdir_p(File.dirname(target))
@@ -90,8 +118,15 @@ module Dotdotdotfiles
       end
     end
 
-    def compile
-      each_variant { |file, variant| render(file, variant) unless file["compile"] == false }
+    # Renders everything before touching the output, so a broken template leaves it intact.
+    def compile(prune: false)
+      rendered = []
+      each_variant { |file, variant| rendered << render(file, variant) unless file["compile"] == false }
+      self.prune if prune
+      rendered.each do |target, content|
+        FileUtils.mkdir_p(File.dirname(target))
+        File.write(target, content)
+      end
       puts "-- Compiled to: #{@config["output_path"]} --"
     end
 
@@ -100,22 +135,19 @@ module Dotdotdotfiles
       variant_name = variant["name"]
       filename = file["name"]
       path = "#{@config["abs_output_path"]}/#{filename}/#{variant_name}"
-      FileUtils.mkdir_p(path)
 
       v = { variant_name.to_sym => true }
       d = self
       template = ERB.new(File.read("#{@config["abs_templates_path"]}/#{filename}.erb"))
-      File.write("#{path}/#{filename}", template.result(binding))
+      ["#{path}/#{filename}", template.result(binding)]
     end
 
     def prune
+      return unless Dir.exist?(@config["abs_output_path"])
+
       puts "-- Pruning compiled files from #{@config["abs_output_path"]}/ --"
-      dont_compile = @config["files"].filter { |e| e["compile"] == false }
-                                     .map { |e| e["name"] }
-
-      Dir.children(@config["abs_output_path"]).each do |entry|
-        next if dont_compile.include?(entry)
-
+      keep = @config["files"].filter { |e| e["compile"] == false }.map { |e| e["name"] }
+      (Dir.children(@config["abs_output_path"]) - keep).each do |entry|
         FileUtils.rm_rf("#{@config["abs_output_path"]}/#{entry}")
       end
     end
@@ -132,23 +164,20 @@ module Dotdotdotfiles
     end
 
     def encrypt
-      files = @config["secrets"]
-      return if files.to_a.empty?
-
       atp = @config["abs_templates_path"]
-      files.each do |secret|
-        `age -e -i #{atp}/.key.txt -o #{atp}/#{secret}.enc #{atp}/#{secret}`
+      @config["secrets"].to_a.each do |secret|
+        Age.run("-e", "-i", "#{atp}/.key.txt", "-o", "#{atp}/#{secret}.enc", "#{atp}/#{secret}")
       end
     end
 
     def decrypt(file_name)
       atp = @config["abs_templates_path"]
-      `age -d -i #{atp}/.key.txt #{atp}/#{file_name}.enc`
+      Age.run("-d", "-i", "#{atp}/.key.txt", "#{atp}/#{file_name}.enc")
     end
 
     def each_variant
       @config["files"].each do |file|
-        file["variants"].each { |variant| yield file, variant }
+        Array(file["variants"]).each { |variant| yield file, variant }
       end
     end
 
