@@ -81,7 +81,7 @@ Renaming locals inside `render` is therefore a breaking change for users' templa
 
 ### `link` vs `script`
 
-`link` honours each variant's `links` array (and skips variants without one), then symlinks `~/.dotfiles.yml` to the manifest in use unless something else is already there. `Links.check` validates every link (inside home, unique target, not an ancestor of its source, source exists) before any target is replaced. `script -v a b` writes `<templates_path>/link_a_b.sh` for use on another machine, but ignores `links` and always targets `~/<file name>`, using the unexpanded `output_path`.
+`link` honours each variant's `links` array (and skips variants without one), then symlinks `~/.dotfiles.yml` to the manifest in use unless something else is already there. `Links.check` validates every link (inside home, no overlapping targets, source exists, target is not a real directory holding its source) before any target is replaced. `script -v a b` writes `<templates_path>/link_a_b.sh` for use on another machine, but ignores `links` and always targets `~/<file name>`, using the unexpanded `output_path`.
 
 ## Conventions
 

@@ -47,13 +47,17 @@ module Dotdotdotfiles
 
     def self.load(path)
       config = YAML.safe_load(File.read(path), aliases: true)
-      unless config.is_a?(Hash) && %w[output_path templates_path].all? { |key| !config[key].to_s.empty? }
-        raise Error, "#{path} must set output_path and templates_path."
-      end
+      raise Error, "#{path} must set output_path and templates_path." unless paths?(config)
 
       config.merge("files" => named(path, Array(config["files"])))
     rescue Psych::Exception => e
       raise Error, "#{path} is not valid YAML: #{e.message}"
+    end
+
+    def self.paths?(config)
+      return false unless config.is_a?(Hash)
+
+      config.values_at("output_path", "templates_path").all? { |dir| dir.is_a?(String) && !dir.empty? }
     end
 
     # Names become path segments, so anything else would address another directory.
@@ -85,19 +89,25 @@ module Dotdotdotfiles
   module Links
     # Runs over every link before any target is replaced.
     def self.check(pairs, home)
-      targets = pairs.map(&:last)
-      duplicate = targets.find { |target| targets.count(target) > 1 }
-      raise Error, "#{duplicate} is linked more than once." if duplicate
+      one, other = pairs.map(&:last).combination(2).find { |a, b| within?(a, b) || within?(b, a) }
+      raise Error, "The links #{one} and #{other} overlap." if one
 
       pairs.each { |source, target| check_pair(source, target, home) }
     end
 
     def self.check_pair(source, target, home)
-      raise Error, "#{source}: link #{target} is not inside #{home}." unless target.start_with?("#{home}/")
-      raise Error, "#{source}: link #{target} would replace its own source." if source.start_with?("#{target}/")
-      return if File.exist?(source)
+      raise Error, "#{source}: link #{target} is not inside #{home}." if target == home || !within?(target, home)
+      unless File.exist?(source)
+        raise Error, "#{source} does not exist. Run `dotdotdotfiles compile`, or create it if it is not compiled."
+      end
+      # Replacing a symlink cannot take the source with it; replacing a real directory can.
+      return if File.symlink?(target) || !File.exist?(target) || !within?(File.realpath(source), File.realpath(target))
 
-      raise Error, "#{source} does not exist. Run `dotdotdotfiles compile`, or create it if it is not compiled."
+      raise Error, "#{source}: link #{target} would replace its own source."
+    end
+
+    def self.within?(path, directory)
+      File.join(path, "").start_with?(File.join(directory, ""))
     end
 
     # Lets later runs find the manifest from any directory.
@@ -128,11 +138,10 @@ module Dotdotdotfiles
       path = Manifest.explicit(config) || Manifest.home
       return puts("-- You already have a manifest at #{path} --") if File.exist?(path)
 
-      File.write(path, Manifest.skeleton(input, output))
-      puts "-- Config created at #{path} --"
-
       [input, output].each { |dir| FileUtils.mkdir_p(File.expand_path(dir)) }
       puts "-- Directories created --"
+      File.write(path, Manifest.skeleton(input, output))
+      puts "-- Config created at #{path} --"
       true
     end
 
@@ -180,13 +189,13 @@ module Dotdotdotfiles
     end
 
     def prune
-      return unless Dir.exist?(@config["abs_output_path"])
+      output = @config["abs_output_path"]
+      return unless Dir.exist?(output)
+      raise Error, "#{output} holds the templates." if Links.within?(@config["abs_templates_path"], output)
 
-      puts "-- Pruning compiled files from #{@config["abs_output_path"]}/ --"
+      puts "-- Pruning compiled files from #{output}/ --"
       keep = @config["files"].filter { |e| e["compile"] == false }.map { |e| e["name"] }
-      (Dir.children(@config["abs_output_path"]) - keep).each do |entry|
-        FileUtils.rm_rf("#{@config["abs_output_path"]}/#{entry}")
-      end
+      (Dir.children(output) - keep).each { |entry| FileUtils.rm_rf("#{output}/#{entry}") }
     end
 
     def generate_link_script(variant_names: [])

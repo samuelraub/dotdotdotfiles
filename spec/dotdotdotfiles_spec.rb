@@ -96,7 +96,7 @@ RSpec.describe Dotdotdotfiles do
     end
 
     it "rejects a manifest without its paths" do
-      ["", "files: []", "output_path: ''\ntemplates_path: x"].each do |content|
+      ["", "files: []", "output_path: ''\ntemplates_path: x", "output_path: 1\ntemplates_path: x"].each do |content|
         File.write(repo_manifest, content)
         expect { Dotdotdotfiles::Dotfiles.new }.to raise_error(Dotdotdotfiles::Error, /must set output_path/)
       end
@@ -133,9 +133,10 @@ RSpec.describe Dotdotdotfiles do
       expect(Dir).to exist("#{repo}/in").and exist("#{repo}/out")
     end
 
-    it "writes the manifest to the override" do
-      Dotdotdotfiles::Dotfiles.setup(input: repo, output: "#{repo}/out", config: repo_manifest)
-      expect(File).to exist(repo_manifest)
+    it "writes the manifest to the override, even inside a directory it creates" do
+      new_manifest = "#{@tmp}/new/.dotfiles.yml"
+      Dotdotdotfiles::Dotfiles.setup(input: "#{@tmp}/new", output: "#{@tmp}/new/out", config: new_manifest)
+      expect(File).to exist(new_manifest)
       expect(File).not_to exist(home_manifest)
     end
 
@@ -195,6 +196,15 @@ RSpec.describe Dotdotdotfiles do
       write_manifest(files: [entry(".rc", variant("default")), entry("kitty", variant("default"), compile: false)])
       Dotdotdotfiles::Dotfiles.new.prune
       expect(Dir.children("#{repo}/out")).to eq ["kitty"]
+    end
+
+    it "refuses to prune a directory that holds the templates" do
+      File.write("#{repo}/.rc.erb", "rc")
+      [repo, File.dirname(repo)].each do |output|
+        write_manifest(output_path: output)
+        expect { Dotdotdotfiles::Dotfiles.new.compile(prune: true) }.to raise_error(Dotdotdotfiles::Error, /templates/)
+      end
+      expect(File).to exist("#{repo}/.rc.erb")
     end
 
     it "does nothing when the output directory does not exist yet" do
@@ -264,8 +274,39 @@ RSpec.describe Dotdotdotfiles do
       [".a", ".b"].each { |name| compiled(name, "default") }
       File.write("#{home}/.rc", "mine")
       write_manifest(files: [entry(".a", variant("default", ".rc")), entry(".b", variant("default", "x/../.rc"))])
-      expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /more than once/)
+      expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /overlap/)
       expect(File.read("#{home}/.rc")).to eq "mine"
+    end
+
+    it "refuses a link inside another link" do
+      [".config", "kitty"].each { |name| compiled(name, "default") }
+      write_manifest(files: [entry(".config", variant("default", ".config")),
+                             entry("kitty", variant("default", ".config/kitty"))])
+      expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /overlap/)
+      expect(File).not_to exist("#{home}/.config")
+    end
+
+    it "refuses a link that is its own source, also through a symlinked directory" do
+      FileUtils.mkdir_p("#{home}/dotfiles/out/kitty/default/kitty")
+      File.symlink("#{home}/dotfiles", "#{home}/alias")
+      ["dotfiles/out/kitty/default/kitty", "alias/out/kitty/default/kitty"].each do |link|
+        write_manifest(output_path: "#{home}/dotfiles/out", files: [entry("kitty", variant("default", link))])
+        expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /its own source/)
+      end
+      expect(File).to be_directory("#{home}/dotfiles/out/kitty/default/kitty")
+      expect(File).not_to be_symlink("#{home}/dotfiles/out/kitty/default/kitty")
+    end
+
+    it "relinks a target that already points at its source" do
+      compiled(".rc", "default")
+      write_manifest(files: [entry(".rc", variant("default", ".rc"))])
+      2.times { Dotdotdotfiles::Dotfiles.new.link }
+      expect(File.readlink("#{home}/.rc")).to eq "#{repo}/out/.rc/default/.rc"
+    end
+
+    it "accepts links when the home directory is the root" do
+      compiled(".rc", "default")
+      expect { Dotdotdotfiles::Links.check([["#{repo}/out/.rc/default/.rc", "/.rc"]], "/") }.not_to raise_error
     end
 
     it "refuses a link that would replace its own source" do
