@@ -204,6 +204,9 @@ RSpec.describe Dotdotdotfiles do
         write_manifest(output_path: output)
         expect { Dotdotdotfiles::Dotfiles.new.compile(prune: true) }.to raise_error(Dotdotdotfiles::Error, /templates/)
       end
+      File.symlink(repo, "#{@tmp}/alias")
+      write_manifest(output_path: "#{@tmp}/alias")
+      expect { Dotdotdotfiles::Dotfiles.new.compile(prune: true) }.to raise_error(Dotdotdotfiles::Error, /templates/)
       expect(File).to exist("#{repo}/.rc.erb")
     end
 
@@ -247,7 +250,8 @@ RSpec.describe Dotdotdotfiles do
     it "refuses a link that is not inside the home directory" do
       compiled(".rc", "default")
       File.write("#{@tmp}/precious", "mine")
-      ["", ".", nil, "..", "x/../..", "../precious", "#{@tmp}/precious"].each do |link|
+      File.symlink(@tmp, "#{home}/outside")
+      ["", ".", "..", "x/../..", "../precious", "#{@tmp}/precious", "outside/precious"].each do |link|
         write_manifest(files: [entry(".rc", variant("default", link))])
         expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /not inside/)
       end
@@ -291,7 +295,7 @@ RSpec.describe Dotdotdotfiles do
       File.symlink("#{home}/dotfiles", "#{home}/alias")
       ["dotfiles/out/kitty/default/kitty", "alias/out/kitty/default/kitty"].each do |link|
         write_manifest(output_path: "#{home}/dotfiles/out", files: [entry("kitty", variant("default", link))])
-        expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /its own source/)
+        expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /would replace files/)
       end
       expect(File).to be_directory("#{home}/dotfiles/out/kitty/default/kitty")
       expect(File).not_to be_symlink("#{home}/dotfiles/out/kitty/default/kitty")
@@ -306,15 +310,41 @@ RSpec.describe Dotdotdotfiles do
 
     it "accepts links when the home directory is the root" do
       compiled(".rc", "default")
-      expect { Dotdotdotfiles::Links.check([["#{repo}/out/.rc/default/.rc", "/.rc"]], "/") }.not_to raise_error
+      pairs = [["#{repo}/out/.rc/default/.rc", "/.rc"]]
+      expect { Dotdotdotfiles::Links.check(pairs, "/", ["#{repo}/out", repo]) }.not_to raise_error
     end
 
     it "refuses a link that would replace its own source" do
       FileUtils.mkdir_p("#{home}/dotfiles/out/.rc/default")
       File.write("#{home}/dotfiles/out/.rc/default/.rc", "")
       write_manifest(output_path: "#{home}/dotfiles/out", files: [entry(".rc", variant("default", "dotfiles"))])
-      expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /its own source/)
+      expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /would replace files/)
       expect(File).to exist("#{home}/dotfiles/out/.rc/default/.rc")
+    end
+
+    it "refuses a link that touches the templates or another entry's output" do
+      FileUtils.mkdir_p("#{home}/dotfiles")
+      File.write("#{home}/dotfiles/.a.erb", "a")
+      %w[.a .b].each do |name|
+        FileUtils.mkdir_p("#{home}/cache/out/#{name}/default")
+        File.write("#{home}/cache/out/#{name}/default/#{name}", "")
+      end
+      File.symlink("#{home}/cache/out/.b/default", "#{home}/old")
+      ["dotfiles", "dotfiles/x", "cache/out/.b", "cache", "old/.b"].each do |link|
+        write_manifest(templates_path: "#{home}/dotfiles", output_path: "#{home}/cache/out",
+                       files: [entry(".a", variant("default", link)), entry(".b", variant("default"))])
+        expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error, /would replace files/)
+      end
+      expect(File).to exist("#{home}/dotfiles/.a.erb").and exist("#{home}/cache/out/.b/default/.b")
+    end
+
+    it "refuses links that are not strings or name an unknown user" do
+      compiled(".rc", "default")
+      [[nil], [{ "a" => "b" }], { "a" => "b" }, ["~no-such-user-here/.rc"]].each do |links|
+        write_manifest(files: [{ "name" => ".rc", "variants" => [{ "name" => "default", "links" => links }] }])
+        expect { Dotdotdotfiles::Dotfiles.new.link }.to raise_error(Dotdotdotfiles::Error)
+      end
+      expect(Dir.children(home)).to be_empty
     end
 
     it "fails when the target cannot be removed" do

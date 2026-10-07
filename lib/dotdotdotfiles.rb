@@ -85,29 +85,64 @@ module Dotdotdotfiles
     end
   end
 
-  # The checks around linking into the home directory.
-  module Links
-    # Runs over every link before any target is replaced.
-    def self.check(pairs, home)
-      one, other = pairs.map(&:last).combination(2).find { |a, b| within?(a, b) || within?(b, a) }
-      raise Error, "The links #{one} and #{other} overlap." if one
+  # Compares paths by what they resolve to, not by how they are spelled.
+  module Paths
+    # Resolves symlinks in the part of the path that exists.
+    def self.real(path)
+      path = File.expand_path(path)
+      return File.realpath(path) if File.exist?(path)
 
-      pairs.each { |source, target| check_pair(source, target, home) }
+      parent = File.dirname(path)
+      parent == path ? path : File.join(real(parent), File.basename(path))
     end
 
-    def self.check_pair(source, target, home)
-      raise Error, "#{source}: link #{target} is not inside #{home}." if target == home || !within?(target, home)
-      unless File.exist?(source)
-        raise Error, "#{source} does not exist. Run `dotdotdotfiles compile`, or create it if it is not compiled."
-      end
-      # Replacing a symlink cannot take the source with it; replacing a real directory can.
-      return if File.symlink?(target) || !File.exist?(target) || !within?(File.realpath(source), File.realpath(target))
-
-      raise Error, "#{source}: link #{target} would replace its own source."
+    # A link target: its own last segment may be a symlink that gets replaced.
+    def self.entry(path)
+      File.join(real(File.dirname(path)), File.basename(path))
     end
 
     def self.within?(path, directory)
       File.join(path, "").start_with?(File.join(directory, ""))
+    end
+
+    def self.overlap?(one, other)
+      within?(one, other) || within?(other, one)
+    end
+
+    def self.keep_apart(templates, output)
+      raise Error, "#{output} holds the templates." if within?(real(templates), real(output))
+    end
+  end
+
+  # The checks around linking into the home directory.
+  module Links
+    def self.targets(variant, home)
+      links = Array(variant["links"])
+      raise Error, "The links of variant #{variant["name"]} must be strings." unless links.all?(String)
+
+      links.map { |link| File.expand_path(link, home) }
+    rescue ArgumentError => e
+      raise Error, e.message
+    end
+
+    # Runs over every link before any target is replaced. `roots` are the directories the sources live in.
+    def self.check(pairs, home, roots)
+      one, other = pairs.map(&:last).combination(2).find { |a, b| Paths.overlap?(Paths.entry(a), Paths.entry(b)) }
+      raise Error, "The links #{one} and #{other} overlap." if one
+
+      home, *roots = [home, *roots].map { |dir| Paths.real(dir) }
+      pairs.each { |source, target| check_pair(source, target, home, roots) }
+    end
+
+    def self.check_pair(source, target, home, roots)
+      entry = Paths.entry(target)
+      raise Error, "#{source}: link #{target} is not inside #{home}." if entry == home || !Paths.within?(entry, home)
+
+      root = roots.find { |candidate| Paths.overlap?(entry, candidate) }
+      raise Error, "#{source}: link #{target} would replace files in #{root}." if root
+      return if File.exist?(source)
+
+      raise Error, "#{source} does not exist. Run `dotdotdotfiles compile`, or create it if it is not compiled."
     end
 
     # Lets later runs find the manifest from any directory.
@@ -149,9 +184,9 @@ module Dotdotdotfiles
       home = File.expand_path(Dir.home)
       pairs = []
       each_variant do |file, variant|
-        Array(variant["links"]).each { |link| pairs << [output_file(file, variant), File.expand_path(link.to_s, home)] }
+        Links.targets(variant, home).each { |target| pairs << [output_file(file, variant), target] }
       end
-      Links.check(pairs, home)
+      Links.check(pairs, home, @config.values_at("abs_output_path", "abs_templates_path"))
       pairs.each { |source, target| link_file(source, target) }
       Links.link_manifest(@config_path)
     end
@@ -191,8 +226,8 @@ module Dotdotdotfiles
     def prune
       output = @config["abs_output_path"]
       return unless Dir.exist?(output)
-      raise Error, "#{output} holds the templates." if Links.within?(@config["abs_templates_path"], output)
 
+      Paths.keep_apart(@config["abs_templates_path"], output)
       puts "-- Pruning compiled files from #{output}/ --"
       keep = @config["files"].filter { |e| e["compile"] == false }.map { |e| e["name"] }
       (Dir.children(output) - keep).each { |entry| FileUtils.rm_rf("#{output}/#{entry}") }

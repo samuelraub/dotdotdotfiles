@@ -8,8 +8,9 @@
 - Allow thor 1.x from 1.3 on
 - `link` refuses a link that does not resolve to a path inside the home directory (an empty one used to delete it)
 - `link` checks every link and source first, and replaces nothing when one of them is invalid
-- `link` refuses links that overlap (the same target twice, or one inside another) and a link that would replace
-  its own source
+- `link` refuses links that overlap (the same target twice, or one inside another) and links that would replace
+  anything in the output or templates directories; symlinks in the paths are resolved before comparing
+- Links must be strings
 - `compile --prune` refuses an output directory that holds the templates
 - `setup` creates the directories before the manifest, so `--config` may point into them
 - `link` fails when an existing target cannot be removed, instead of linking into it

@@ -81,11 +81,11 @@ Renaming locals inside `render` is therefore a breaking change for users' templa
 
 ### `link` vs `script`
 
-`link` honours each variant's `links` array (and skips variants without one), then symlinks `~/.dotfiles.yml` to the manifest in use unless something else is already there. `Links.check` validates every link (inside home, no overlapping targets, source exists, target is not a real directory holding its source) before any target is replaced. `script -v a b` writes `<templates_path>/link_a_b.sh` for use on another machine, but ignores `links` and always targets `~/<file name>`, using the unexpanded `output_path`.
+`link` honours each variant's `links` array (and skips variants without one), then symlinks `~/.dotfiles.yml` to the manifest in use unless something else is already there. `Links.check` validates every link (inside home, no overlapping targets, clear of the output and templates directories, source exists) before any target is replaced. It and `prune` compare resolved paths via `Paths`, never the spelled ones. `script -v a b` writes `<templates_path>/link_a_b.sh` for use on another machine, but ignores `links` and always targets `~/<file name>`, using the unexpanded `output_path`.
 
 ## Conventions
 
 - RuboCop: double-quoted strings, 120-column lines, `TargetRubyVersion: 2.6`.
-- Ruby versions disagree: `.ruby-version` is 3.3.4, CI uses 3.2.2, the gemspec allows `>= 2.6.0`.
+- `.ruby-version` and CI both use 3.3.4; the gemspec allows `>= 2.6.0`, which is also rubocop's target.
 - Commit messages follow `type(scope): subject`, e.g. `fix(CLI): don't prune non-compiled files`.
 - `sig/dotfiles.rbs` is a stale stub from the gem's former name (`dotfiles`).
