@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
   spec.summary = "Maintain your dotfiles with templates, version them and deploy them anywhere"
   spec.homepage = "https://github.com/samuelraub/dotdotdotfiles"
   spec.license = "MIT"
-  spec.required_ruby_version = ">= 2.6.0"
+  spec.required_ruby_version = ">= 3.3.0"
 
   # Not published to rubygems.org: releases are git tags. This makes `gem push` refuse.
   spec.metadata["allowed_push_host"] = "https://rubygems.invalid"
