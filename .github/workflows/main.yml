@@ -21,7 +21,7 @@ jobs:
     strategy:
       matrix:
         ruby:
-          - "3.3.13"
+          - "3.3.14"
           - "4.0"
 
     steps:
